@@ -1,0 +1,1 @@
+# micro-trading-robot
