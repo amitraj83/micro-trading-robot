@@ -173,7 +173,10 @@ class MultiSymbolDashboard:
     def update_chart(self, symbol):
         """Update chart for a specific symbol"""
         if symbol not in self.chart_frames:
+            print(f"[update_chart] {symbol}: Not in chart_frames")
             return
+        
+        print(f"[update_chart] {symbol}: Updating chart with {len(self.prices[symbol])} prices")
         
         ax = self.chart_frames[symbol]['ax']
         ax.clear()
@@ -185,12 +188,15 @@ class MultiSymbolDashboard:
             ax.plot(x_data, list(self.prices[symbol]), label="Price", 
                    color="#2E7D32", linewidth=2, marker='o', markersize=3, alpha=0.8)
             
+            print(f"[update_chart] {symbol}: Plotted {len(x_data)} price points")
+            
             # Plot BUY signals
             if self.buy_signals[symbol]:
                 buy_x = [x for x, p, tid in self.buy_signals[symbol]]
                 buy_y = [p for x, p, tid in self.buy_signals[symbol]]
                 ax.scatter(buy_x, buy_y, marker='^', color='#00D084', s=200, 
                           label="BUY", zorder=5, edgecolors='darkgreen', linewidths=1)
+                print(f"[update_chart] {symbol}: Plotted {len(buy_x)} BUY signals")
             
             # Plot SELL signals
             if self.sell_signals[symbol]:
@@ -198,6 +204,7 @@ class MultiSymbolDashboard:
                 sell_y = [p for x, p, tid in self.sell_signals[symbol]]
                 ax.scatter(sell_x, sell_y, marker='v', color='#FF6B6B', s=200, 
                           label="SELL", zorder=5, edgecolors='darkred', linewidths=1)
+                print(f"[update_chart] {symbol}: Plotted {len(sell_x)} SELL signals")
             
             # Plot close signals
             if self.buy_close_signals[symbol]:
@@ -224,30 +231,34 @@ class MultiSymbolDashboard:
                 price_max = max(self.prices[symbol])
                 padding = (price_max - price_min) * 0.1 if price_max != price_min else 1
                 ax.set_ylim(price_min - padding, price_max + padding)
+        else:
+            print(f"[update_chart] {symbol}: No prices to plot yet")
         
         self.chart_frames[symbol]['fig'].tight_layout()
         self.chart_frames[symbol]['canvas'].draw()
+        print(f"[update_chart] {symbol}: Canvas drawn")
     
     def update_ui(self, data):
         """Update UI with multi-symbol data from WebSocket"""
         try:
             symbols_data = data.get("symbols", {})
-            print(f"[DEBUG] Received data with symbols: {list(symbols_data.keys())}")
+            print(f"\n[update_ui] Received snapshot with {len(symbols_data)} symbols: {list(symbols_data.keys())}")
             
             total_pnl = 0
             total_trades = 0
             open_positions = 0
             
             for symbol, snapshot in symbols_data.items():
+                print(f"[update_ui] Processing {symbol}...")
                 self._process_symbol_tick(symbol, snapshot)
                 
                 # Calculate metrics
                 strategy = self.strategy_manager.get_strategy(symbol)
                 if strategy:
                     metrics = strategy.metrics
-                    total_pnl += metrics.get("total_pnl", 0)
-                    total_trades += metrics.get("trades_executed", 0)
-                    if strategy.open_trade:
+                    total_pnl += metrics.total_pnl
+                    total_trades += metrics.total_trades
+                    if strategy.current_position:
                         open_positions += 1
             
             # Update global stats
@@ -255,9 +266,11 @@ class MultiSymbolDashboard:
             self.global_pnl_label.config(text=f"Total P/L: ${total_pnl:+.2f}")
             self.global_trades_label.config(text=f"Trades: {total_trades}")
             self.open_positions_label.config(text=f"Open Positions: {open_positions}/{len(self.symbols)}")
+            
+            print(f"[update_ui] DONE - Total P/L: ${total_pnl:+.2f}, Trades: {total_trades}\n")
         
         except Exception as e:
-            print(f"[ERROR] Error updating UI: {e}")
+            print(f"[ERROR] update_ui: {e}")
             import traceback
             traceback.print_exc()
     
@@ -266,6 +279,7 @@ class MultiSymbolDashboard:
         symbol = symbol.upper()
         
         if symbol not in self.prices:
+            print(f"[_process_symbol_tick] Symbol {symbol} not in prices dict (available: {list(self.prices.keys())})")
             return
         
         try:
@@ -275,7 +289,10 @@ class MultiSymbolDashboard:
             
             price = minute.get("c") or day.get("c")
             if price is None:
+                print(f"[_process_symbol_tick] {symbol}: No price found in snapshot")
                 return
+            
+            print(f"[_process_symbol_tick] {symbol}: Processing price ${price:.2f}")
             
             volume = minute.get("v") or day.get("v") or 0
             bid = round(price - 0.01, 2)
@@ -289,9 +306,13 @@ class MultiSymbolDashboard:
             self.ask_prices[symbol].append(ask)
             self.tick_counts[symbol] += 1
             
+            print(f"[_process_symbol_tick] {symbol}: Added price to deque. Count: {self.tick_counts[symbol]}")
+            
             # Create tick and process through strategy
             tick = Tick(price=price, volume=volume, timestamp_ns=updated_ns, symbol=symbol)
             event = self.strategy_manager.process_tick(symbol, tick)
+            
+            print(f"[_process_symbol_tick] {symbol}: Strategy event: {event.get('action')} - {event.get('reason')}")
             
             # Log tick
             self.logger.log_tick(tick, event)
@@ -301,6 +322,7 @@ class MultiSymbolDashboard:
                 trade = event.get("trade")
                 if trade:
                     self.trade_counters[symbol] += 1
+                    print(f"[_process_symbol_tick] {symbol}: OPEN signal - trade #{self.trade_counters[symbol]}")
                     if trade.direction == "LONG":
                         self.buy_signals[symbol].append((len(self.prices[symbol])-1, price, self.trade_counters[symbol]))
                     elif trade.direction == "SHORT":
@@ -309,31 +331,35 @@ class MultiSymbolDashboard:
             if event.get("action") == "CLOSE":
                 trade = event.get("trade")
                 if trade:
+                    print(f"[_process_symbol_tick] {symbol}: CLOSE signal - P/L: ${trade.pnl:.3f}")
                     trade_id = self.trade_counters[symbol]
                     if trade.direction == "LONG":
                         self.buy_close_signals[symbol].append((len(self.prices[symbol])-1, trade.exit_price, trade_id))
                     elif trade.direction == "SHORT":
                         self.sell_close_signals[symbol].append((len(self.prices[symbol])-1, trade.exit_price, trade_id))
                     
-                    # Log to event log
                     self.log_event(symbol, trade)
             
             # Update stats
             strategy = self.strategy_manager.get_strategy(symbol)
             if strategy:
                 metrics = strategy.metrics
-                pnl = metrics.get("total_pnl", 0)
-                pnl_pct = metrics.get("win_rate", 0)
+                pnl = metrics.total_pnl
+                
+                print(f"[_process_symbol_tick] {symbol}: Updating UI labels - Price: ${price:.2f}, P/L: ${pnl:.2f}")
                 
                 self.stat_labels[symbol]['price'].config(text=f"Price: ${price:.2f}")
                 self.stat_labels[symbol]['pnl'].config(text=f"P/L: ${pnl:+.2f}")
-                self.stat_labels[symbol]['trades'].config(text=f"Trades: {metrics.get('trades_executed', 0)}")
+                self.stat_labels[symbol]['trades'].config(text=f"Trades: {metrics.total_trades}")
             
             # Update chart
+            print(f"[_process_symbol_tick] {symbol}: Updating chart (prices count: {len(self.prices[symbol])})")
             self.update_chart(symbol)
         
         except Exception as e:
-            print(f"Error processing {symbol} tick: {e}")
+            print(f"[_process_symbol_tick] {symbol}: ERROR - {e}")
+            import traceback
+            traceback.print_exc()
     
     def log_event(self, symbol, trade):
         """Log trade event to event log"""
