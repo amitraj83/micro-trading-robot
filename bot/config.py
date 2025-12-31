@@ -28,8 +28,10 @@ def load_env_from_file(path: str = ".env") -> None:
 # Load environment before reading values
 load_env_from_file()
 
-# Shared symbol (UI/server/bot)
-SYMBOL = os.getenv("SYMBOL", "AAPL")
+# Shared symbol(s) (UI/server/bot) - supports both single and multi-symbol
+SYMBOL = os.getenv("SYMBOL", "AAPL")  # Fallback for legacy single-symbol
+SYMBOLS_ENV = os.getenv("SYMBOLS", "AAPL,MSFT,GOOGL,TSLA")
+SYMBOLS = [s.strip().upper() for s in SYMBOLS_ENV.split(",")]
 
 # Strategy Configuration - PRODUCTION GRADE (ALIGNED WITH NEW RULES)
 STRATEGY_CONFIG = {

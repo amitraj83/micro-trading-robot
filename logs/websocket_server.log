@@ -1,12 +1,14 @@
-2025-12-31 00:23:29,719 [INFO] server listening on 127.0.0.1:8765
-2025-12-31 00:23:29,719 [INFO] server listening on [::1]:8765
-2025-12-31 00:23:33,021 [INFO] connection open
-2025-12-31 00:23:33,022 [INFO] Client connected: 127.0.0.1:53241
-2025-12-31 00:24:30,472 [INFO] Snapshot broadcasted to 1 clients
-2025-12-31 00:25:30,834 [INFO] Snapshot broadcasted to 1 clients
-2025-12-31 00:26:31,171 [INFO] Snapshot broadcasted to 1 clients
-2025-12-31 00:27:31,613 [INFO] Snapshot broadcasted to 1 clients
-2025-12-31 00:28:31,953 [INFO] Snapshot broadcasted to 1 clients
-2025-12-31 00:29:32,313 [INFO] Snapshot broadcasted to 1 clients
-2025-12-31 00:30:32,645 [INFO] Snapshot broadcasted to 1 clients
-2025-12-31 00:31:33,013 [INFO] Snapshot broadcasted to 1 clients
+2025-12-31 00:49:42,562 [INFO] server listening on 127.0.0.1:8765
+2025-12-31 00:49:42,562 [INFO] server listening on [::1]:8765
+2025-12-31 00:49:43,201 [INFO] connection open
+2025-12-31 00:49:43,201 [INFO] Client connected: 127.0.0.1:53644
+2025-12-31 00:49:56,734 [INFO] connection open
+2025-12-31 00:49:56,734 [INFO] Client connected: 127.0.0.1:53653
+2025-12-31 00:50:43,327 [INFO] Snapshot broadcasted to 2 clients (4 symbols: ['AEHL', 'ULY', 'EKSO', 'MENS'])
+2025-12-31 00:50:43,331 [INFO] connection closed
+2025-12-31 00:50:57,828 [INFO] connection open
+2025-12-31 00:50:57,828 [INFO] Client connected: 127.0.0.1:53671
+2025-12-31 00:51:43,698 [INFO] Snapshot broadcasted to 2 clients (4 symbols: ['AEHL', 'ULY', 'EKSO', 'MENS'])
+2025-12-31 00:52:44,052 [INFO] Snapshot broadcasted to 2 clients (4 symbols: ['AEHL', 'ULY', 'EKSO', 'MENS'])
+2025-12-31 00:53:44,439 [INFO] Snapshot broadcasted to 2 clients (4 symbols: ['AEHL', 'ULY', 'EKSO', 'MENS'])
+2025-12-31 00:53:44,446 [INFO] connection closed

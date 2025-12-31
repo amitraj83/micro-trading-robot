@@ -74,39 +74,47 @@ POLYGON_API_KEY = os.getenv("POLYGON_API_KEY", "")
 POLYGON_BASE_URL = os.getenv("POLYGON_BASE_URL", "")
 POLYGON_SNAPSHOT_PATH = os.getenv("POLYGON_SNAPSHOT_PATH", "")
 SYMBOL = os.getenv("SYMBOL", "AAPL")
+
+# Multi-symbol support
+SYMBOLS_ENV = os.getenv("SYMBOLS", "AAPL,MSFT,GOOGL,TSLA")
+SYMBOLS = [s.strip().upper() for s in SYMBOLS_ENV.split(",")]
+
 FETCH_INTERVAL = _parse_float_env("FETCH_INTERVAL", 60.0)
 
 
-def build_snapshot_url() -> str:
+def build_snapshot_url(symbol: str = None) -> str:
+    """Build snapshot URL for a specific symbol (or SYMBOL fallback)."""
     base = POLYGON_BASE_URL.rstrip("/")
     path = POLYGON_SNAPSHOT_PATH
     if not path.startswith("/"):
         path = "/" + path
     if not path.endswith("/"):
         path = path + "/"
-    return f"{base}{path}{SYMBOL}"
+    target_symbol = (symbol or SYMBOL).upper()
+    return f"{base}{path}{target_symbol}"
 
 
 SNAPSHOT_URL = build_snapshot_url()
 
 
-async def fetch_snapshot(session: aiohttp.ClientSession) -> dict:
+async def fetch_snapshot(session: aiohttp.ClientSession, symbol: str = None) -> dict:
+    """Fetch snapshot for a specific symbol (or SYMBOL fallback)."""
     if not POLYGON_API_KEY:
         logger.error("POLYGON_API_KEY is missing; cannot fetch snapshot")
         return {}
 
-    url = SNAPSHOT_URL
+    url = build_snapshot_url(symbol)
     params = {"apiKey": POLYGON_API_KEY}
 
     try:
         async with session.get(url, params=params, timeout=10) as resp:
             if resp.status != 200:
                 text = await resp.text()
-                logger.error(f"Snapshot fetch failed {resp.status}: {text}")
+                logger.error(f"Snapshot fetch failed {resp.status} for {symbol or SYMBOL}: {text}")
                 return {}
             return await resp.json()
     except Exception as e:
-        logger.error(f"Error fetching snapshot: {e}")
+        logger.error(f"Error fetching snapshot for {symbol or SYMBOL}: {e}")
         return {}
 
 
@@ -158,20 +166,10 @@ async def handler(websocket):
     logger.info(f"Client connected: {client_id}")
     
     try:
-        # Send a welcome message
-        welcome_msg = {
-            "status": "connected",
-            "message": f"Welcome to Trading WebSocket Server",
-            "timestamp": datetime.now().isoformat()
-        }
-        await websocket.send(json.dumps(welcome_msg))
-        
-        # Keep the connection open
+        # Keep the connection open and wait for incoming messages
         async for message in websocket:
             logger.debug(f"Received from {client_id}: {message}")
-            # Echo back or handle commands
-            response = {"echo": message, "received_at": datetime.now().isoformat()}
-            await websocket.send(json.dumps(response))
+            # Just echo back for now (optional)
     
     except websockets.exceptions.ConnectionClosed:
         logger.info(f"Client disconnected: {client_id}")
@@ -184,16 +182,26 @@ async def handler(websocket):
 
 
 async def event_broadcaster():
-    """Continuously broadcast trading events to all connected clients"""
+    """Continuously broadcast trading events for all symbols to all connected clients"""
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                snapshot = await fetch_snapshot(session)
-                if not snapshot:
-                    await asyncio.sleep(FETCH_INTERVAL)
-                    continue
-                if connected_clients:
-                    message = json.dumps(snapshot)
+                # Fetch all symbols in parallel
+                snapshot_tasks = [fetch_snapshot(session, symbol) for symbol in SYMBOLS]
+                snapshots = await asyncio.gather(*snapshot_tasks, return_exceptions=True)
+                
+                # Combine snapshots into one message
+                combined_message = {
+                    "timestamp": int(time.time() * 1e9),
+                    "symbols": {}
+                }
+                
+                for symbol, snapshot in zip(SYMBOLS, snapshots):
+                    if isinstance(snapshot, dict) and snapshot:
+                        combined_message["symbols"][symbol] = snapshot
+                
+                if combined_message["symbols"] and connected_clients:
+                    message = json.dumps(combined_message)
                     disconnected_clients = set()
                     for client in connected_clients:
                         try:
@@ -204,7 +212,8 @@ async def event_broadcaster():
                     for client in disconnected_clients:
                         connected_clients.discard(client)
 
-                    logger.info(f"Snapshot broadcasted to {len(connected_clients)} clients")
+                    active_symbols = list(combined_message["symbols"].keys())
+                    logger.info(f"Snapshot broadcasted to {len(connected_clients)} clients ({len(active_symbols)} symbols: {active_symbols})")
 
             except Exception as e:
                 logger.error(f"Error in broadcaster: {e}")

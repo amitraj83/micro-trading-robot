@@ -47,10 +47,10 @@ echo -e "${GREEN}✓ Server started (PID: $SERVER_PID)${NC}"
 # Wait for server to start
 sleep 2
 
-# Start trading dashboard
-echo -e "${GREEN}Starting Trading Dashboard...${NC}"
+# Start trading dashboard (multi-symbol)
+echo -e "${GREEN}Starting Multi-Symbol Trading Dashboard...${NC}"
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
-python3 websocket_ui/trading_dashboard.py > "$LOG_DIR/trading_dashboard.log" 2>&1 &
+python3 websocket_ui/multi_symbol_dashboard.py > "$LOG_DIR/trading_dashboard.log" 2>&1 &
 DASHBOARD_PID=$!
 echo -e "${GREEN}✓ Dashboard started (PID: $DASHBOARD_PID)${NC}"
 

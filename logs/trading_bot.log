@@ -141,3 +141,6 @@
 2025-12-30 23:07:37,856 - bot.strategy - INFO - OPEN LONG @ $161.09 | size 3 shares | Daily DOWN (-0.00%) bias=1.5x | risk 0.50% of $103.48, stop 0.08%, raw 4.0 -> size 3, capped by 5.0x leverage
 2025-12-30 23:07:39,804 - bot.strategy - WARNING - ⏸️  RULE 4.4: Cooldown activated for 300s after 7 losses
 2025-12-30 23:07:39,805 - bot.strategy - INFO - CLOSE LONG @ $160.82 (SL) | PnL: $-0.81 (-0.17%)
+2025-12-31 00:32:33,483 - bot.strategy - INFO - 🟢 LONG signal: change=1.760%, streak=3, vol_spike=1.5x | Daily UP (+0.00%) bias=1.5
+2025-12-31 00:32:33,485 - bot.strategy - INFO - OPEN LONG @ $3.47 | size 144 shares | Daily UP (+0.00%) bias=1.5x | risk 0.50% of $100.00, stop 0.08%, raw 180.1 -> size 144, capped by 5.0x leverage
+2025-12-31 00:33:33,712 - bot.strategy - INFO - CLOSE LONG @ $3.44 (SL) | PnL: $-4.32 (-0.86%)
