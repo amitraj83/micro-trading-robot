@@ -377,33 +377,38 @@ class MultiSymbolDashboard:
                 uri = WEBSOCKET_CONFIG["uri"]
                 async with websockets.connect(uri) as websocket:
                     self.connection_status = "Connected"
+                    print(f"[WebSocket] Connected to {uri}")
                     self.root.after(0, lambda: self.status_label.config(
-                        text=f"Status: Connected | {sum(self.tick_counts.values())} ticks"))
-                    
-                    print(f"Connected to {uri}")
+                        text=f"Status: Connected | Waiting for data..."))
                     
                     async for message in websocket:
                         try:
                             data = json.loads(message)
+                            print(f"[WebSocket] Received message with keys: {list(data.keys())}")
                             if "symbols" in data:
-                                self.root.after(0, self.update_ui, data)
-                                self.root.after(0, lambda: self.status_label.config(
-                                    text=f"Status: Connected | {sum(self.tick_counts.values())} total ticks"))
-                        except json.JSONDecodeError:
-                            pass
+                                print(f"[WebSocket] Calling update_ui with {len(data['symbols'])} symbols")
+                                self.root.after(0, lambda d=data: self.update_ui(d))
+                            else:
+                                print(f"[WebSocket] Message does not have 'symbols' key")
+                        except json.JSONDecodeError as e:
+                            print(f"[WebSocket] JSON decode error: {e}")
                         except Exception as e:
-                            print(f"Error processing message: {e}")
+                            print(f"[WebSocket] Error processing message: {e}")
+                            import traceback
+                            traceback.print_exc()
             
             except ConnectionRefusedError:
                 self.connection_status = "Disconnected"
+                print(f"[WebSocket] Connection refused - retrying in {WEBSOCKET_CONFIG['reconnect_delay']}s...")
                 self.root.after(0, lambda: self.status_label.config(
                     text=f"Status: Disconnected (retrying...)"))
-                print(f"Connection refused. Retrying in {WEBSOCKET_CONFIG['reconnect_delay']}s...")
                 await asyncio.sleep(WEBSOCKET_CONFIG["reconnect_delay"])
             
             except Exception as e:
                 self.connection_status = "Error"
-                print(f"Connection error: {e}")
+                print(f"[WebSocket] Connection error: {e}")
+                import traceback
+                traceback.print_exc()
                 await asyncio.sleep(WEBSOCKET_CONFIG["reconnect_delay"])
 
 

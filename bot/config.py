@@ -31,7 +31,8 @@ load_env_from_file()
 # Shared symbol(s) (UI/server/bot) - supports both single and multi-symbol
 SYMBOL = os.getenv("SYMBOL", "AAPL")  # Fallback for legacy single-symbol
 SYMBOLS_ENV = os.getenv("SYMBOLS", "AAPL,MSFT,GOOGL,TSLA")
-SYMBOLS = [s.strip().upper() for s in SYMBOLS_ENV.split(",")]
+# Parse symbols and strip comments/whitespace
+SYMBOLS = [s.strip().upper().split('#')[0].strip() for s in SYMBOLS_ENV.split(",") if s.strip() and not s.strip().startswith('#')]
 
 # Strategy Configuration - PRODUCTION GRADE (ALIGNED WITH NEW RULES)
 STRATEGY_CONFIG = {

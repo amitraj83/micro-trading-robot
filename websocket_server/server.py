@@ -77,7 +77,7 @@ SYMBOL = os.getenv("SYMBOL", "AAPL")
 
 # Multi-symbol support
 SYMBOLS_ENV = os.getenv("SYMBOLS", "AAPL,MSFT,GOOGL,TSLA")
-SYMBOLS = [s.strip().upper() for s in SYMBOLS_ENV.split(",")]
+SYMBOLS = [s.strip().upper().split('#')[0].strip() for s in SYMBOLS_ENV.split(",") if s.strip() and not s.strip().startswith('#')]
 
 FETCH_INTERVAL = _parse_float_env("FETCH_INTERVAL", 60.0)
 
