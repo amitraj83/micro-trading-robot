@@ -183,13 +183,19 @@ class MicroTradingStrategy:
             logger.info(f"🟢 LONG signal: change={price_change*100:.3f}%, streak={price_direction_streak}, vol_spike={current_volume/avg_volume:.1f}x | Daily {daily_context} ({daily_change:+.2f}%) bias={daily_bias}")
             return "LONG"
         
-        # SHORT (SELL CFD) - Profit from DOWNTREND
+        # SHORT (SELL CFD) - Profit from DOWNTREND (only if enabled in config)
         # Conditions: Price falling + strong momentum + volume spike + direction confirmed
         # Bias: Extra confidence on DOWN days (daily_bias = 1.5)
         elif (price_change <= -STRATEGY_CONFIG["entry_threshold"] and 
               price_direction_streak < 0):
-            logger.info(f"🔴 SHORT signal: change={price_change*100:.3f}%, streak={price_direction_streak}, vol_spike={current_volume/avg_volume:.1f}x | Daily {daily_context} ({daily_change:+.2f}%) bias={daily_bias}")
-            return "SHORT"
+            # Check if SHORT/SELL positions are allowed
+            from bot.config import ALLOW_SELL_POSITIONS
+            if ALLOW_SELL_POSITIONS:
+                logger.info(f"🔴 SHORT signal: change={price_change*100:.3f}%, streak={price_direction_streak}, vol_spike={current_volume/avg_volume:.1f}x | Daily {daily_context} ({daily_change:+.2f}%) bias={daily_bias}")
+                return "SHORT"
+            else:
+                logger.info(f"⚪ SHORT signal filtered (ALLOW_SELL_POSITIONS=false): change={price_change*100:.3f}%, streak={price_direction_streak}")
+                return None
         
         return None
     

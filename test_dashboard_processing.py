@@ -5,6 +5,7 @@ import asyncio
 import json
 import websockets
 import threading
+import time
 from collections import deque
 
 from bot.models import Tick
@@ -45,7 +46,7 @@ class SimpleDashboardTest:
                     metrics = strategy.metrics
                     total_pnl += metrics.total_pnl
                     total_trades += metrics.total_trades
-                    if strategy.open_trade:
+                    if strategy.current_position:
                         open_positions += 1
             
             print(f"[update_ui] Portfolio: P/L=${total_pnl:+.2f}, Trades={total_trades}, Open={open_positions}")
@@ -65,33 +66,24 @@ class SimpleDashboardTest:
             day_data = ticker.get("day", {})
             
             price = day_data.get("c", 0)
-            bid = day_data.get("bid", 0)
-            ask = day_data.get("ask", 0)
+            volume = day_data.get("v", 0)
+            updated_ns = ticker.get("updated") or int(time.time() * 1e9)
             
-            print(f"[_process_symbol_tick] {symbol}: Price=${price:.2f}, Bid=${bid:.2f}, Ask=${ask:.2f}")
+            print(f"[_process_symbol_tick] {symbol}: Price=${price:.2f}, Volume={volume}")
             
             # Append to price history
             self.prices[symbol].append(price)
             self.tick_counts[symbol] += 1
             print(f"[_process_symbol_tick] {symbol}: Tick #{self.tick_counts[symbol]}")
             
-            # Create Tick and process
-            tick = Tick(
-                symbol=symbol,
-                price=price,
-                bid=bid,
-                ask=ask,
-                bid_size=day_data.get("bid_size", 0),
-                ask_size=day_data.get("ask_size", 0),
-                time=day_data.get("t", 0)
-            )
+            # Create Tick and process (correct parameters)
+            tick = Tick(price=price, volume=volume, timestamp_ns=updated_ns, symbol=symbol)
+            event = self.strategy_manager.process_tick(symbol, tick)
             
-            self.strategy_manager.process_tick(symbol, tick)
-            strategy = self.strategy_manager.get_strategy(symbol)
-            print(f"[_process_symbol_tick] {symbol}: Strategy state - open_trade={strategy.open_trade is not None}")
+            print(f"[_process_symbol_tick] {symbol}: Strategy event - action={event.get('action')}, reason={event.get('reason')}")
             
             # Log the tick
-            self.logger.log_tick(symbol, tick, None)
+            self.logger.log_tick(tick, event)
             print(f"[_process_symbol_tick] {symbol}: Tick logged")
         
         except Exception as e:

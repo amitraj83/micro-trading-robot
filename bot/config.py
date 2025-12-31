@@ -34,6 +34,9 @@ SYMBOLS_ENV = os.getenv("SYMBOLS", "AAPL,MSFT,GOOGL,TSLA")
 # Parse symbols and strip comments/whitespace
 SYMBOLS = [s.strip().upper().split('#')[0].strip() for s in SYMBOLS_ENV.split(",") if s.strip() and not s.strip().startswith('#')]
 
+# Trading mode configuration
+ALLOW_SELL_POSITIONS = os.getenv("ALLOW_SELL_POSITIONS", "false").lower() in ("true", "1", "yes", "on")
+
 # Strategy Configuration - PRODUCTION GRADE (ALIGNED WITH NEW RULES)
 STRATEGY_CONFIG = {
     # Window for momentum detection (seconds of tick history)

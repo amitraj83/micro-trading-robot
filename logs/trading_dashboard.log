@@ -1,20 +1,164 @@
-Traceback (most recent call last):
-  File "/Users/ara/micro-trading-robot/websocket_ui/multi_symbol_dashboard.py", line 248, in update_ui
-    total_pnl += metrics.get("total_pnl", 0)
-                 ^^^^^^^^^^^
-AttributeError: 'StrategyMetrics' object has no attribute 'get'
-Traceback (most recent call last):
-  File "/Users/ara/micro-trading-robot/websocket_ui/multi_symbol_dashboard.py", line 248, in update_ui
-    total_pnl += metrics.get("total_pnl", 0)
-                 ^^^^^^^^^^^
-AttributeError: 'StrategyMetrics' object has no attribute 'get'
-Traceback (most recent call last):
-  File "/Users/ara/micro-trading-robot/websocket_ui/multi_symbol_dashboard.py", line 248, in update_ui
-    total_trades = 0
-    
-AttributeError: 'StrategyMetrics' object has no attribute 'get'
-Traceback (most recent call last):
-  File "/Users/ara/micro-trading-robot/websocket_ui/multi_symbol_dashboard.py", line 248, in update_ui
-    total_trades = 0
-    
-AttributeError: 'StrategyMetrics' object has no attribute 'get'
+[StrategyManager] Initialized 4 strategies: ['AEHL', 'ULY', 'EKSO', 'MENS']
+[WebSocket] Connected to ws://localhost:8765
+[WebSocket] Received message with keys: ['timestamp', 'symbols']
+[WebSocket] Calling update_ui with 4 symbols
+
+[update_ui] Received snapshot with 4 symbols: ['AEHL', 'ULY', 'EKSO', 'MENS']
+[update_ui] Processing AEHL...
+[_process_symbol_tick] AEHL: Processing price $2.17
+[_process_symbol_tick] AEHL: Added price to deque. Count: 1
+[_process_symbol_tick] AEHL: Strategy event: None - None
+[_process_symbol_tick] AEHL: Updating UI labels - Price: $2.17, P/L: $0.00
+[_process_symbol_tick] AEHL: Updating chart (prices count: 1)
+[update_chart] AEHL: Updating chart with 1 prices
+[update_chart] AEHL: Plotted 1 price points
+[update_chart] AEHL: Canvas drawn
+[update_ui] Processing ULY...
+[_process_symbol_tick] ULY: Processing price $3.68
+[_process_symbol_tick] ULY: Added price to deque. Count: 1
+[_process_symbol_tick] ULY: Strategy event: None - None
+[_process_symbol_tick] ULY: Updating UI labels - Price: $3.68, P/L: $0.00
+[_process_symbol_tick] ULY: Updating chart (prices count: 1)
+[update_chart] ULY: Updating chart with 1 prices
+[update_chart] ULY: Plotted 1 price points
+[update_chart] ULY: Canvas drawn
+[update_ui] Processing EKSO...
+[_process_symbol_tick] EKSO: Processing price $10.50
+[_process_symbol_tick] EKSO: Added price to deque. Count: 1
+[_process_symbol_tick] EKSO: Strategy event: None - None
+[_process_symbol_tick] EKSO: Updating UI labels - Price: $10.50, P/L: $0.00
+[_process_symbol_tick] EKSO: Updating chart (prices count: 1)
+[update_chart] EKSO: Updating chart with 1 prices
+[update_chart] EKSO: Plotted 1 price points
+[update_chart] EKSO: Canvas drawn
+[update_ui] Processing MENS...
+[_process_symbol_tick] MENS: Processing price $4.25
+[_process_symbol_tick] MENS: Added price to deque. Count: 1
+[_process_symbol_tick] MENS: Strategy event: None - None
+[_process_symbol_tick] MENS: Updating UI labels - Price: $4.25, P/L: $0.00
+[_process_symbol_tick] MENS: Updating chart (prices count: 1)
+[update_chart] MENS: Updating chart with 1 prices
+[update_chart] MENS: Plotted 1 price points
+[update_chart] MENS: Canvas drawn
+[update_ui] DONE - Total P/L: $+0.00, Trades: 0
+
+[WebSocket] Received message with keys: ['timestamp', 'symbols']
+[WebSocket] Calling update_ui with 4 symbols
+
+[update_ui] Received snapshot with 4 symbols: ['AEHL', 'ULY', 'EKSO', 'MENS']
+[update_ui] Processing AEHL...
+[_process_symbol_tick] AEHL: Processing price $2.17
+[_process_symbol_tick] AEHL: Added price to deque. Count: 2
+[_process_symbol_tick] AEHL: Strategy event: None - None
+[_process_symbol_tick] AEHL: Updating UI labels - Price: $2.17, P/L: $0.00
+[_process_symbol_tick] AEHL: Updating chart (prices count: 2)
+[update_chart] AEHL: Updating chart with 2 prices
+[update_chart] AEHL: Plotted 2 price points
+[update_chart] AEHL: Canvas drawn
+[update_ui] Processing ULY...
+[_process_symbol_tick] ULY: Processing price $3.68
+[_process_symbol_tick] ULY: Added price to deque. Count: 2
+[_process_symbol_tick] ULY: Strategy event: None - None
+[_process_symbol_tick] ULY: Updating UI labels - Price: $3.68, P/L: $0.00
+[_process_symbol_tick] ULY: Updating chart (prices count: 2)
+[update_chart] ULY: Updating chart with 2 prices
+[update_chart] ULY: Plotted 2 price points
+[update_chart] ULY: Canvas drawn
+[update_ui] Processing EKSO...
+[_process_symbol_tick] EKSO: Processing price $10.50
+[_process_symbol_tick] EKSO: Added price to deque. Count: 2
+[_process_symbol_tick] EKSO: Strategy event: None - None
+[_process_symbol_tick] EKSO: Updating UI labels - Price: $10.50, P/L: $0.00
+[_process_symbol_tick] EKSO: Updating chart (prices count: 2)
+[update_chart] EKSO: Updating chart with 2 prices
+[update_chart] EKSO: Plotted 2 price points
+[update_chart] EKSO: Canvas drawn
+[update_ui] Processing MENS...
+[_process_symbol_tick] MENS: Processing price $4.25
+[_process_symbol_tick] MENS: Added price to deque. Count: 2
+[_process_symbol_tick] MENS: Strategy event: None - None
+[_process_symbol_tick] MENS: Updating UI labels - Price: $4.25, P/L: $0.00
+[_process_symbol_tick] MENS: Updating chart (prices count: 2)
+[update_chart] MENS: Updating chart with 2 prices
+[update_chart] MENS: Plotted 2 price points
+[update_chart] MENS: Canvas drawn
+[update_ui] DONE - Total P/L: $+0.00, Trades: 0
+
+[WebSocket] Received message with keys: ['timestamp', 'symbols']
+[WebSocket] Calling update_ui with 4 symbols
+
+[update_ui] Received snapshot with 4 symbols: ['AEHL', 'ULY', 'EKSO', 'MENS']
+[update_ui] Processing AEHL...
+[_process_symbol_tick] AEHL: Processing price $2.17
+[_process_symbol_tick] AEHL: Added price to deque. Count: 3
+[_process_symbol_tick] AEHL: Strategy event: None - None
+[_process_symbol_tick] AEHL: Updating UI labels - Price: $2.17, P/L: $0.00
+[_process_symbol_tick] AEHL: Updating chart (prices count: 3)
+[update_chart] AEHL: Updating chart with 3 prices
+[update_chart] AEHL: Plotted 3 price points
+[update_chart] AEHL: Canvas drawn
+[update_ui] Processing ULY...
+[_process_symbol_tick] ULY: Processing price $3.68
+[_process_symbol_tick] ULY: Added price to deque. Count: 3
+[_process_symbol_tick] ULY: Strategy event: None - None
+[_process_symbol_tick] ULY: Updating UI labels - Price: $3.68, P/L: $0.00
+[_process_symbol_tick] ULY: Updating chart (prices count: 3)
+[update_chart] ULY: Updating chart with 3 prices
+[update_chart] ULY: Plotted 3 price points
+[update_chart] ULY: Canvas drawn
+[update_ui] Processing EKSO...
+[_process_symbol_tick] EKSO: Processing price $10.50
+[_process_symbol_tick] EKSO: Added price to deque. Count: 3
+[_process_symbol_tick] EKSO: Strategy event: None - None
+[_process_symbol_tick] EKSO: Updating UI labels - Price: $10.50, P/L: $0.00
+[_process_symbol_tick] EKSO: Updating chart (prices count: 3)
+[update_chart] EKSO: Updating chart with 3 prices
+[update_chart] EKSO: Plotted 3 price points
+[update_chart] EKSO: Canvas drawn
+[update_ui] Processing MENS...
+[_process_symbol_tick] MENS: Processing price $4.25
+[_process_symbol_tick] MENS: Added price to deque. Count: 3
+[_process_symbol_tick] MENS: Strategy event: None - None
+[_process_symbol_tick] MENS: Updating UI labels - Price: $4.25, P/L: $0.00
+[_process_symbol_tick] MENS: Updating chart (prices count: 3)
+[update_chart] MENS: Updating chart with 3 prices
+[update_chart] MENS: Plotted 3 price points
+[update_chart] MENS: Canvas drawn
+[update_ui] DONE - Total P/L: $+0.00, Trades: 0
+
+[WebSocket] Received message with keys: ['timestamp', 'symbols']
+[WebSocket] Calling update_ui with 4 symbols
+
+[update_ui] Received snapshot with 4 symbols: ['AEHL', 'ULY', 'EKSO', 'MENS']
+[update_ui] Processing AEHL...
+[_process_symbol_tick] AEHL: Processing price $2.17
+[_process_symbol_tick] AEHL: Added price to deque. Count: 4
+[_process_symbol_tick] AEHL: Strategy event: None - None
+[_process_symbol_tick] AEHL: Updating UI labels - Price: $2.17, P/L: $0.00
+[_process_symbol_tick] AEHL: Updating chart (prices count: 4)
+[update_chart] AEHL: Updating chart with 4 prices
+[update_chart] AEHL: Plotted 4 price points
+[update_chart] AEHL: Canvas drawn
+[update_ui] Processing ULY...
+[_process_symbol_tick] ULY: Processing price $3.68
+[_process_symbol_tick] ULY: Added price to deque. Count: 4
+[_process_symbol_tick] ULY: Strategy event: None - None
+[_process_symbol_tick] ULY: Updating UI labels - Price: $3.68, P/L: $0.00
+[_process_symbol_tick] ULY: Updating chart (prices count: 4)
+[update_chart] ULY: Updating chart with 4 prices
+[update_chart] ULY: Plotted 4 price points
+[update_chart] ULY: Canvas drawn
+[update_ui] Processing EKSO...
+[_process_symbol_tick] EKSO: Processing price $10.50
+[_process_symbol_tick] EKSO: Added price to deque. Count: 4
+[_process_symbol_tick] EKSO: Strategy event: None - None
+[_process_symbol_tick] EKSO: Updating UI labels - Price: $10.50, P/L: $0.00
+[_process_symbol_tick] EKSO: Updating chart (prices count: 4)
+[update_chart] EKSO: Updating chart with 4 prices
+[update_chart] EKSO: Plotted 4 price points
+[update_chart] EKSO: Canvas drawn
+[update_ui] Processing MENS...
+[_process_symbol_tick] MENS: Processing price $4.25
+[_process_symbol_tick] MENS: Added price to deque. Count: 4
+[_process_symbol_tick] MENS: Strategy event: None - None
+[_process_symbol_tick] MENS: Updating UI labels - Price: $4.25, P/L: $0.00
