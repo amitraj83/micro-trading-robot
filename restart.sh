@@ -9,11 +9,24 @@ NC='\033[0m' # No Color
 echo -e "${YELLOW}=== Micro Trading Bot - Restart Script ===${NC}"
 echo ""
 
-# Step 1: Stop all processes
-echo -e "${YELLOW}[1/3] Stopping all processes...${NC}"
+# Step 0: Update symbols from gainers (if enabled)
+echo -e "${YELLOW}[0/4] Checking for symbol updates from gainers...${NC}"
+python3 update_symbols_from_gainers.py
+UPDATE_STATUS=$?
+if [ $UPDATE_STATUS -eq 0 ]; then
+    echo -e "${GREEN}✓ Symbols updated (or skipped if disabled)${NC}"
+else
+    echo -e "${YELLOW}⚠ Symbol update had issues, continuing with existing symbols${NC}"
+fi
+echo ""
+
+# Step 1: Stop all processes and clean Python cache
+echo -e "${YELLOW}[1/4] Stopping all processes and cleaning cache...${NC}"
+pkill -f "websocket|dashboard|historical_data" 2>/dev/null
 pkill -f "python3 websocket_server/server.py" 2>/dev/null
 pkill -f "python3 websocket_ui/trading_dashboard.py" 2>/dev/null
 pkill -f "python3 websocket_client/client.py" 2>/dev/null
+pkill -f "python3 websocket_server/historical_data_server.py" 2>/dev/null
 
 # Give processes time to shutdown gracefully
 sleep 2
@@ -21,15 +34,28 @@ sleep 2
 # Force kill any remaining Python processes on port 8765
 lsof -ti:8765 | xargs kill -9 2>/dev/null
 
-echo -e "${GREEN}✓ All processes stopped${NC}"
+# Force kill any remaining Python processes on port 8001 (historical data)
+lsof -ti:8001 | xargs kill -9 2>/dev/null
+
+# Clear Python cache files
+echo -e "${GREEN}  Clearing Python cache...${NC}"
+find "$SCRIPT_DIR" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
+find "$SCRIPT_DIR" -name "*.pyc" -delete 2>/dev/null
+
+# Clear old trading logs for fresh start
+echo -e "${GREEN}  Clearing old trading logs...${NC}"
+rm -f "$SCRIPT_DIR/logs/trading_ticks.jsonl" 2>/dev/null
+rm -f "$SCRIPT_DIR/logs/trading_trades.jsonl" 2>/dev/null
+
+echo -e "${GREEN}✓ All processes stopped and cache cleaned${NC}"
 echo ""
 
 # Step 2: Wait before restarting
-echo -e "${YELLOW}[2/3] Waiting 2 seconds before restart...${NC}"
+echo -e "${YELLOW}[2/4] Waiting 2 seconds before restart...${NC}"
 sleep 2
 
 # Step 3: Start server
-echo -e "${YELLOW}[3/3] Starting services...${NC}"
+echo -e "${YELLOW}[3/4] Starting services...${NC}"
 echo ""
 
 # Get the directory where the script is located
@@ -37,7 +63,23 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 LOG_DIR="$SCRIPT_DIR/logs"
 mkdir -p "$LOG_DIR"
 
-# Start WebSocket server in background
+# Load environment variables to check FAKE_TICKS
+set -a
+source "$SCRIPT_DIR/.env"
+set +a
+
+# Step 4a: Start Historical Data WebSocket server
+echo -e "${YELLOW}[4a/4] Starting Historical Data WebSocket server (Yahoo Finance)...${NC}"
+echo -e "${GREEN}Starting Historical Data Server...${NC}"
+python3 websocket_server/historical_data_server.py > "$LOG_DIR/historical_data_server.log" 2>&1 &
+HISTORICAL_DATA_PID=$!
+echo -e "${GREEN}✓ Historical Data server started (PID: $HISTORICAL_DATA_PID)${NC}"
+sleep 1  # Give server time to start
+
+echo ""
+
+# Step 4: Start WebSocket server in background
+echo -e "${YELLOW}[4/4] Launching server, bot, and dashboard...${NC}"
 echo -e "${GREEN}Starting WebSocket Server...${NC}"
 cd "$SCRIPT_DIR"
 python3 websocket_server/server.py > "$LOG_DIR/websocket_server.log" 2>&1 &
@@ -47,9 +89,18 @@ echo -e "${GREEN}✓ Server started (PID: $SERVER_PID)${NC}"
 # Wait for server to start
 sleep 2
 
-# Start trading dashboard (multi-symbol)
-echo -e "${GREEN}Starting Multi-Symbol Trading Dashboard...${NC}"
+# Start trading bot (connects to historical data server and makes trades)
+echo -e "${GREEN}Starting Trading Bot...${NC}"
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
+python3 bot/runner.py > "$LOG_DIR/bot_runner.log" 2>&1 &
+BOT_PID=$!
+echo -e "${GREEN}✓ Trading Bot started (PID: $BOT_PID)${NC}"
+
+# Wait for bot to connect
+sleep 2
+
+# Start trading dashboard (multi-symbol - displays bot activity)
+echo -e "${GREEN}Starting Multi-Symbol Trading Dashboard...${NC}"
 python3 websocket_ui/multi_symbol_dashboard.py > "$LOG_DIR/trading_dashboard.log" 2>&1 &
 DASHBOARD_PID=$!
 echo -e "${GREEN}✓ Dashboard started (PID: $DASHBOARD_PID)${NC}"
@@ -59,10 +110,12 @@ echo -e "${GREEN}=== All services started successfully ===${NC}"
 echo ""
 echo -e "${YELLOW}Running services:${NC}"
 echo "  • WebSocket Server (PID: $SERVER_PID) - ws://localhost:8765"
+echo "  • Trading Bot (PID: $BOT_PID) - Connects to historical data (ws://localhost:8001)"
 echo "  • Trading Dashboard (PID: $DASHBOARD_PID) - Watch your terminal"
 echo ""
 echo -e "${YELLOW}Logs available at:${NC}"
 echo "  • Server: $LOG_DIR/websocket_server.log"
+echo "  • Bot: $LOG_DIR/bot_runner.log"
 echo "  • Dashboard: $LOG_DIR/trading_dashboard.log"
 echo ""
 echo -e "${YELLOW}To stop all services:${NC}"

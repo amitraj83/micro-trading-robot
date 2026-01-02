@@ -2,11 +2,17 @@
 """
 Find stock tickers from gainers API that match shortNames in instruments_response.json.
 Returns the first 5 matches.
+Supports multiple platforms: POLYGON and YAHOO.
 """
 
 import requests
 import json
+import os
 from typing import List, Dict, Any
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 def load_instruments(filepath: str = "instruments_response.json") -> Dict[str, str]:
@@ -23,8 +29,8 @@ def load_instruments(filepath: str = "instruments_response.json") -> Dict[str, s
         return {}
 
 
-def fetch_gainers(api_key: str) -> List[Dict[str, Any]]:
-    """Fetch stock gainers from the API."""
+def fetch_gainers_polygon(api_key: str) -> List[Dict[str, Any]]:
+    """Fetch stock gainers from Polygon API."""
     url = f"https://api.massive.com/v2/snapshot/locale/us/markets/stocks/gainers?apiKey={api_key}"
     try:
         response = requests.get(url, timeout=10)
@@ -32,15 +38,211 @@ def fetch_gainers(api_key: str) -> List[Dict[str, Any]]:
         data = response.json()
         return data.get('tickers', [])
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching gainers API: {e}")
+        print(f"Error fetching Polygon gainers API: {e}")
         return []
 
 
-def find_matching_tickers(api_key: str = "TEwsmbCFGd8dDANW3EY3IjmIohcLMrqj", limit: int = 5) -> List[Dict[str, Any]]:
+def fetch_gainers_yahoo(screener_type: str = None) -> List[Dict[str, Any]]:
+    """Fetch stocks from Yahoo Finance screener based on selected type.
+    
+    Args:
+        screener_type: Type of screener to use:
+            - day_gainers: Top % gainers today (default)
+            - most_active: Highest trading volume
+            - most_trending: Most momentum/social trending
+            - day_losers: Top % losers (contrarian trades)
+    """
+    try:
+        import yfinance as yf
+        
+        # Get screener type from parameter or environment variable
+        if screener_type is None:
+            screener_type = os.getenv('YAHOO_SCREENER_TYPE', 'day_gainers').lower()
+        else:
+            screener_type = screener_type.lower()
+        
+        print(f"Fetching stocks from Yahoo Finance screener: {screener_type}...")
+        
+        gainers = []
+        
+        try:
+            # Scrape the actual Yahoo Finance screener page
+            import urllib.request
+            import json as json_module
+            
+            # Yahoo Finance screener API endpoint with parameterized scrIds
+            url = f"https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=true&lang=en-US&region=US&scrIds={screener_type}&count=100"
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            
+            req = urllib.request.Request(url, headers=headers)
+            
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json_module.loads(response.read().decode())
+                
+                # Extract ticker data from the screener results
+                if 'finance' in data and 'result' in data['finance']:
+                    results = data['finance']['result']
+                    if results and len(results) > 0 and 'quotes' in results[0]:
+                        quotes = results[0]['quotes']
+                        
+                        for quote in quotes:
+                            ticker = quote.get('symbol', '')
+                            regular_price = quote.get('regularMarketPrice', {}).get('raw', 0)
+                            prev_close = quote.get('regularMarketPreviousClose', {}).get('raw', 0)
+                            
+                            if ticker and regular_price and prev_close and prev_close > 0:
+                                change = regular_price - prev_close
+                                change_percent = (change / prev_close) * 100
+                                
+                                gainer = {
+                                    'ticker': ticker,
+                                    'todaysChangePerc': change_percent,
+                                    'todaysChange': change,
+                                    'currentPrice': regular_price,
+                                    'dayOpen': quote.get('regularMarketOpen', {}).get('raw', regular_price),
+                                    'dayHigh': quote.get('regularMarketDayHigh', {}).get('raw', regular_price),
+                                    'dayLow': quote.get('regularMarketDayLow', {}).get('raw', regular_price),
+                                    'dayVolume': quote.get('regularMarketVolume', {}).get('raw', 0),
+                                }
+                                gainers.append(gainer)
+                        
+                        print(f"Retrieved {len(gainers)} gainers from Yahoo Finance screener")
+            
+            # Sort by percentage change (highest first)
+            gainers.sort(key=lambda x: x['todaysChangePerc'], reverse=True)
+            
+            return gainers
+            
+        except Exception as e:
+            print(f"Error fetching from screener API: {e}")
+            print("Falling back to manual ticker check...")
+            
+            # Fallback: check a broader list of tickers
+            tickers_to_check = ['A', 'AAL', 'AAPL', 'ABBV', 'ABT', 'ACAD', 'ACN', 'ADBE', 'ADI', 'ADM',
+                           'ADSK', 'AEE', 'AEP', 'AERN', 'AES', 'AFG', 'AFSI', 'AGCO', 'AGN', 'AGNC',
+                           'AGRS', 'AGX', 'AGIO', 'AGYS', 'AHH', 'AHL', 'AIG', 'AIV', 'AIRT', 'AJRD',
+                           'ALCO', 'ALC', 'ALKS', 'ALRM', 'ALSK', 'ALXO', 'AMAT', 'AMBC', 'AMBX', 'AMCX',
+                           'RARE', 'FTAI', 'ATER', 'GEVO', 'RIOT', 'MARA', 'CLSK', 'IREN', 'CBRL', 'BBIG']
+            
+            for ticker in tickers_to_check:
+                try:
+                    stock = yf.Ticker(ticker)
+                    info = stock.info
+                    
+                    # Get today's price change
+                    regular_market_price = info.get('regularMarketPrice', 0)
+                    previous_close = info.get('previousClose', 0)
+                    
+                    if previous_close and regular_market_price and previous_close > 0:
+                        change_percent = ((regular_market_price - previous_close) / previous_close) * 100
+                        if change_percent > 0:  # Only positive changes
+                            gainer = {
+                                'ticker': ticker,
+                                'todaysChangePerc': change_percent,
+                                'todaysChange': regular_market_price - previous_close,
+                                'currentPrice': regular_market_price,
+                                'dayOpen': info.get('open', 0) or previous_close,
+                                'dayHigh': info.get('dayHigh', 0) or regular_market_price,
+                                'dayLow': info.get('dayLow', 0) or regular_market_price,
+                                'dayVolume': info.get('volume', 0) or 0,
+                            }
+                            gainers.append(gainer)
+                except Exception:
+                    # Silently skip tickers that fail
+                    continue
+            
+            # Sort by percentage change (highest first)
+            gainers.sort(key=lambda x: x['todaysChangePerc'], reverse=True)
+            
+            return gainers
+            
+    except ImportError:
+        print("Error: yfinance not installed. Run 'pip install yfinance'")
+        return []
+    except Exception as e:
+        print(f"Error fetching Yahoo Finance gainers: {e}")
+        return []
+
+
+def validate_ticker_with_polygon(ticker: str, api_key: str) -> bool:
+    """
+    Validate if ticker exists in Polygon database.
+    Makes GET request to /v3/reference/tickers/{ticker}
+    Returns True if HTTP 200, False otherwise.
+    """
+    url = f"https://api.massive.com/v3/reference/tickers/{ticker}"
+    try:
+        response = requests.get(
+            url,
+            params={'apiKey': api_key},
+            timeout=5
+        )
+        return response.status_code == 200
+    except Exception as e:
+        return False
+
+
+def fetch_gainers(api_key: str = None, platform: str = None, screener_type: str = None) -> List[Dict[str, Any]]:
+    """
+    Fetch stocks based on configured platform and screener type.
+    
+    Args:
+        api_key: API key for Polygon (required if platform is POLYGON)
+        platform: Platform to use (POLYGON or YAHOO). Defaults to env var DAY_GAINER_FETCH_PLATFORM
+        screener_type: Yahoo screener type (day_gainers, most_active, most_trending, day_losers).
+                       Defaults to env var YAHOO_SCREENER_TYPE or 'day_gainers'
+    
+    Returns:
+        List of tickers in standardized format
+    """
+    if platform is None:
+        platform = os.getenv('DAY_GAINER_FETCH_PLATFORM', 'POLYGON').upper()
+    
+    print(f"Fetching stocks from {platform} platform...")
+    
+    if platform == 'POLYGON':
+        if api_key is None:
+            api_key = os.getenv('POLYGON_API_KEY')
+        if not api_key:
+            print("Error: POLYGON_API_KEY not set in environment")
+            return []
+        return fetch_gainers_polygon(api_key)
+    elif platform == 'YAHOO':
+        return fetch_gainers_yahoo(screener_type=screener_type)
+    else:
+        print(f"Error: Unknown platform '{platform}'. Use POLYGON or YAHOO")
+        return []
+
+
+def find_matching_tickers(api_key: str = None, platform: str = None, limit: int = 5, validate_with_polygon: bool = False, screener_type: str = None) -> List[Dict[str, Any]]:
     """
     Find stock tickers from gainers that match shortNames in instruments.
-    Returns the first N matches (default 5).
+    
+    Processing order (highest gain first):
+    1. Filter: Check if ticker exists in instruments_response.json
+    2. Filter: Validate with Polygon API /v3/reference/tickers/{ticker} if YAHOO
+    3. Add confirmed tickers to list
+    4. Stop when 4 confirmed or all gainers processed
+    
+    Args:
+        api_key: API key for Polygon (optional, uses env var if not provided)
+        platform: Platform to use (POLYGON or YAHOO, optional, uses env var if not provided)
+        limit: Maximum number of matches to return (default based on platform)
+        validate_with_polygon: Validate tickers with Polygon API (YAHOO only)
+    
+    Returns:
+        List of matching ticker data sorted by todaysChangePerc (highest first)
     """
+    if platform is None:
+        platform = os.getenv('DAY_GAINER_FETCH_PLATFORM', 'POLYGON').upper()
+    
+    # Default limit based on platform
+    if limit is None:
+        limit = 4 if platform == 'YAHOO' else 5
+    
     print("Loading instruments...")
     instruments_map = load_instruments()
     
@@ -51,58 +253,132 @@ def find_matching_tickers(api_key: str = "TEwsmbCFGd8dDANW3EY3IjmIohcLMrqj", lim
     print(f"Loaded {len(instruments_map)} unique shortNames\n")
     
     print("Fetching gainers from API...")
-    gainers = fetch_gainers(api_key)
+    gainers = fetch_gainers(api_key=api_key, platform=platform, screener_type=screener_type)
     
     if not gainers:
         print("No gainers retrieved from API.")
         return []
     
     print(f"Fetched {len(gainers)} gainers\n")
-    print("Searching for matches...\n")
+    print("Processing gainers (highest first)...\n")
+    
+    if api_key is None:
+        api_key = os.getenv('POLYGON_API_KEY')
     
     matches = []
     
+    # Process gainers top-to-bottom (already sorted by percentage gain)
     for ticker_data in gainers:
         ticker = ticker_data.get('ticker')
+        change_pct = ticker_data.get('todaysChangePerc', 0)
         
-        if ticker in instruments_map:
-            instrument = instruments_map[ticker]
-            match = {
-                'ticker': ticker,
-                'shortName': ticker,
-                'instrumentName': instrument.get('name', 'N/A'),
-                'todaysChangePerc': ticker_data.get('todaysChangePerc', 0),
-                'todaysChange': ticker_data.get('todaysChange', 0),
-                'currentPrice': ticker_data.get('day', {}).get('c', 0),
-                'dayOpen': ticker_data.get('day', {}).get('o', 0),
-                'dayHigh': ticker_data.get('day', {}).get('h', 0),
-                'dayLow': ticker_data.get('day', {}).get('l', 0),
-                'dayVolume': ticker_data.get('day', {}).get('v', 0),
-            }
-            matches.append(match)
-            print(f"✓ Match #{len(matches)}: {ticker}")
-            print(f"  Name: {match['instrumentName']}")
-            print(f"  Today's Change: {match['todaysChangePerc']:+.2f}%")
-            print(f"  Current Price: ${match['currentPrice']:.2f}")
-            print(f"  Day High/Low: ${match['dayHigh']:.2f} / ${match['dayLow']:.2f}")
-            print(f"  Volume: {match['dayVolume']:,}\n")
-            
-            if len(matches) >= limit:
-                break
+        # Filter 1: Check if in instruments
+        if ticker not in instruments_map:
+            print(f"✗ {ticker:6} ({change_pct:+7.2f}%) - NOT in instruments")
+            continue
+        
+        # Filter 2: Validate with Polygon (YAHOO only)
+        if platform == 'YAHOO' and validate_with_polygon:
+            if not validate_ticker_with_polygon(ticker, api_key):
+                print(f"✗ {ticker:6} ({change_pct:+7.2f}%) - Polygon validation failed")
+                continue
+        
+        # Confirmed! Add to matches
+        instrument = instruments_map[ticker]
+        match = {
+            'ticker': ticker,
+            'shortName': ticker,
+            'instrumentName': instrument.get('name', 'N/A'),
+            'todaysChangePerc': change_pct,
+            'todaysChange': ticker_data.get('todaysChange', 0),
+            'currentPrice': ticker_data.get('currentPrice', 0),
+            'dayOpen': ticker_data.get('dayOpen', 0),
+            'dayHigh': ticker_data.get('dayHigh', 0),
+            'dayLow': ticker_data.get('dayLow', 0),
+            'dayVolume': ticker_data.get('dayVolume', 0),
+        }
+        matches.append(match)
+        print(f"✓ {ticker:6} ({change_pct:+7.2f}%) - CONFIRMED")
+        
+        # Check if we have enough
+        if len(matches) >= limit:
+            print(f"\n✓ Found {limit} confirmed gainers. Stopping.\n")
+            break
     
     if not matches:
-        print("No matches found.")
+        print("⚠ No confirmed gainers found.")
     else:
         print(f"\n{'='*60}")
-        print(f"Found {len(matches)} matching ticker(s)")
-        print(f"{'='*60}")
+        print(f"Total confirmed: {len(matches)}")
+        print(f"{'='*60}\n")
     
     return matches
 
 
+def list_all_gainers(api_key: str = None, platform: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    List all top gainers from the platform (not filtered by instruments).
+    Useful for testing and discovering gainers.
+    
+    Args:
+        api_key: API key for Polygon (optional, uses env var if not provided)
+        platform: Platform to use (POLYGON or YAHOO, optional, uses env var if not provided)
+        limit: Maximum number of gainers to return (default 10)
+    
+    Returns:
+        List of top gainer tickers sorted by todaysChangePerc (highest first)
+    """
+    if platform is None:
+        platform = os.getenv('DAY_GAINER_FETCH_PLATFORM', 'POLYGON').upper()
+    
+    print(f"Fetching top {limit} gainers from {platform} platform...")
+    gainers = fetch_gainers(api_key=api_key, platform=platform)
+    
+    if not gainers:
+        print("No gainers retrieved.")
+        return []
+    
+    # Sort by percentage change (highest first)
+    gainers.sort(key=lambda x: x.get('todaysChangePerc', 0), reverse=True)
+    
+    # Limit to requested number
+    top_gainers = gainers[:limit]
+    
+    print(f"\nTop {limit} Gainers:\n")
+    for idx, gainer in enumerate(top_gainers, 1):
+        ticker = gainer.get('ticker', 'N/A')
+        change = gainer.get('todaysChangePerc', 0)
+        price = gainer.get('currentPrice', 0)
+        volume = gainer.get('dayVolume', 0)
+        print(f"{idx:2}. {ticker:6} | Change: {change:+7.2f}% | Price: ${price:8.2f} | Volume: {volume:>12,}")
+    
+    return top_gainers
+
+
 def main():
     """Main entry point."""
-    matches = find_matching_tickers(limit=5)
+    # Get platform from env or use default
+    platform = os.getenv('DAY_GAINER_FETCH_PLATFORM', 'POLYGON')
+    api_key = os.getenv('POLYGON_API_KEY')
+    
+    print(f"Using platform: {platform}\n")
+    
+    # First, show top 10 gainers for testing
+    print("="*80)
+    print("TOP 10 GAINERS (TEST)")
+    print("="*80)
+    top_gainers = list_all_gainers(api_key=api_key, platform=platform, limit=10)
+    
+    if top_gainers:
+        print(f"\nTop 10 Gainers Summary (JSON):")
+        print(json.dumps(top_gainers, indent=2))
+    
+    print("\n" + "="*80)
+    print("MATCHING TICKERS (filtered by instruments)")
+    print("="*80 + "\n")
+    
+    # Then, find matches with instruments
+    matches = find_matching_tickers(api_key=api_key, platform=platform)
     
     if matches:
         print("\nMatches Summary (JSON):")

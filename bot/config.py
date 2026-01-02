@@ -35,24 +35,25 @@ SYMBOLS_ENV = os.getenv("SYMBOLS", "AAPL,MSFT,GOOGL,TSLA")
 SYMBOLS = [s.strip().upper().split('#')[0].strip() for s in SYMBOLS_ENV.split(",") if s.strip() and not s.strip().startswith('#')]
 
 # Trading mode configuration
-ALLOW_SELL_POSITIONS = os.getenv("ALLOW_SELL_POSITIONS", "false").lower() in ("true", "1", "yes", "on")
+# Allow short positions by default so the strategy can trade both sides unless explicitly disabled via env.
+ALLOW_SELL_POSITIONS = os.getenv("ALLOW_SELL_POSITIONS", "true").lower() in ("true", "1", "yes", "on")
 
 # Strategy Configuration - PRODUCTION GRADE (ALIGNED WITH NEW RULES)
 STRATEGY_CONFIG = {
     # Window for momentum detection (seconds of tick history)
-    "window_size": 15,
+    "window_size": 100,  # Need at least 50 for EMA50, padding for safety
     
     # Entry thresholds - STRICT (Rule 2.1)
-    "entry_threshold": 0.0008,  # 0.08% price move required (Rule 2.1)
-    "volume_spike_multiplier": 1.3,  # Volume must be 1.3x rolling average (Rule 2.1)
+    "entry_threshold": 0.00012,  # 0.012% price move required (ultra-relaxed for calm markets)
+    "volume_spike_multiplier": 0.3,  # Volume must be 0.3x rolling average (ultra-relaxed for penny stocks)
     "volatility_guard_threshold": 0.0015,  # 0.15% price movement required (Rule 1.1)
     
     # Momentum confirmation - require direction streak (Rule 2.1)
     "min_direction_streak": 3,  # At least 3 consecutive moves in same direction (UPGRADED)
     
     # Exit thresholds - tuned to hold trends longer
-    "profit_target": 0.0030,  # 0.30% profit target (wider to let winners run)
-    "stop_loss": 0.0008,  # 0.08% stop loss (gives room for continuation wiggle)
+    "profit_target": 0.0100,  # 1.00% profit target (wider to let winners run)
+    "stop_loss": 0.0050,  # 0.50% stop loss (gives room for continuation wiggle)
     "trend_sl_buffer": 1.5,  # If trend is still strong, widen SL by this multiplier
     "time_stop_seconds": 10,  # Exit if not profitable within 10s (Rule 4.2)
 

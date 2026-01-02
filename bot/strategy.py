@@ -1,12 +1,22 @@
 from typing import Optional, Tuple
 from datetime import datetime
 import time
-from bot.models import Tick, Trade, StrategyMetrics
-from bot.tick_buffer import TickBuffer
-from bot.config import STRATEGY_CONFIG, RISK_CONFIG
-from bot.rules import PROFESSIONAL_RULES
-from bot.market_data import MockMarketDataProvider, DailyMarketData
 import logging
+
+# Support both direct module imports (cwd=root with bot on sys.path)
+# and package imports (bot.strategy).
+try:
+    from models import Tick, Trade, StrategyMetrics
+    from tick_buffer import TickBuffer
+    from config import STRATEGY_CONFIG, RISK_CONFIG
+    from rules import PROFESSIONAL_RULES
+    from market_data import MockMarketDataProvider, DailyMarketData
+except ImportError:  # Fallback when imported as part of the bot package
+    from bot.models import Tick, Trade, StrategyMetrics
+    from bot.tick_buffer import TickBuffer
+    from bot.config import STRATEGY_CONFIG, RISK_CONFIG
+    from bot.rules import PROFESSIONAL_RULES
+    from bot.market_data import MockMarketDataProvider, DailyMarketData
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +26,7 @@ class MicroTradingStrategy:
     
     def __init__(self):
         self.tick_buffer = TickBuffer(STRATEGY_CONFIG["window_size"])
-        self.current_position: Optional[Trade] = None
+        self.current_positions: dict = {}  # {symbol: Trade} - one position per symbol
         self.closed_trades: list = []
         self.metrics = StrategyMetrics()
         self.last_entry_time = None
@@ -76,8 +86,8 @@ class MicroTradingStrategy:
             self.rules_violated_log.append(rule_msg)
             return False, rule_msg
         
-        # RULE 4.1: Risk per trade
-        if self.current_position is not None:
+        # RULE 4.1: Risk per trade - check if ANY symbol has open position
+        if len(self.current_positions) > 0:
             return False, "Already have open position"
         
         # RULE 4.4: Cooldown after consecutive losses
@@ -130,76 +140,104 @@ class MicroTradingStrategy:
     
     def check_entry_signals(self) -> Optional[str]:
         """
-        Check if conditions are met for entry (CFD-correct)
+        EMA50/EMA20-based entry logic with momentum and volume confirmation
         
-        STRICT ENTRY: Only enter on strong momentum + volume + direction confirmation
-        Applies DAILY BIAS: DOWN days favor SHORT, UP days favor LONG
+        Entry: Trend detection via EMA50 + Flexible confirmation (momentum OR volume)
         
-        LONG (BUY CFD): Profit when price goes UP
-        SHORT (SELL CFD): Profit when price goes DOWN
+        LONG (BUY): Price > EMA50 (uptrend) + (Momentum ≥0.1% OR Volume ≥50% baseline)
+        SHORT (SELL): Price < EMA50 (downtrend) + (Momentum ≥0.1% OR Volume ≥50% baseline)
         
         Returns: "LONG", "SHORT", or None
         """
         if not self.tick_buffer.is_ready():
             return None
         
-        # RULE 1: Volatility filter check (PROFESSIONAL RULE)
-        rule_1_ok, rule_1_msg = self.check_rule_1_volatility()
-        if not rule_1_ok:
-            logger.debug(rule_1_msg)
+        # Get EMA values for trend detection
+        ema50 = self.tick_buffer.calculate_ema_50()
+        ema20 = self.tick_buffer.calculate_ema_20()
+        current_price = self.tick_buffer.get_latest_price()
+        
+        if current_price is None or ema50 is None:
             return None
         
-        # Check 2: Price momentum - explicit direction detection
-        price_change = self.tick_buffer.calculate_price_change()
-        price_direction_streak = self.tick_buffer.get_price_direction_streak()
-        
-        # Check 3: Direction confirmation - require streak (STRICTER)
-        min_streak = STRATEGY_CONFIG.get("min_direction_streak", 3)
-        if abs(price_direction_streak) < min_streak:
-            logger.debug(f"Direction streak too weak: {price_direction_streak} < ±{min_streak}")
-            return None
-        
-        # Check 4: Volume spike (STRICTER - 2.0x instead of 1.5x)
+        # Get confirmation signals
+        momentum_pct = self.tick_buffer.calculate_price_change()
         current_volume = self.tick_buffer.get_latest_volume()
         avg_volume = self.tick_buffer.calculate_avg_volume()
-        volume_spike = current_volume > avg_volume * STRATEGY_CONFIG["volume_spike_multiplier"]
+        volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
         
-        if not volume_spike:
-            logger.debug(f"Volume spike insufficient: {current_volume} < {avg_volume * STRATEGY_CONFIG['volume_spike_multiplier']:.1f}")
-            return None
+        # Confirmation thresholds - RELAXED for more frequent entries
+        momentum_threshold = 0.0005  # 0.05% (was 0.1%)
+        momentum_ok = abs(momentum_pct) >= momentum_threshold
+        volume_ok = volume_ratio >= 0.3  # 30% of baseline volume (was 50%)
+        strong_momentum = abs(momentum_pct) >= 0.001  # 0.1% (was 0.2%)
         
-        # Get daily bias
+        # Get daily bias for context
         daily_bias = self.current_daily_data.daily_bias if self.current_daily_data else 1.0
         daily_change = self.current_daily_data.todays_change_pct if self.current_daily_data else 0.0
         daily_context = "DOWN" if daily_change < 0 else "UP" if daily_change > 0 else "NEUTRAL"
         
-        # CFD Entry Logic: STRICT confirmation with DAILY BIAS
+        # ✅ LONG ENTRY: Trend UP (price > EMA50) + (Momentum OR Volume)
+        if current_price > ema50:
+            # Check flexible confirmation: momentum OR volume
+            momentum_status = "[PRIMARY]" if momentum_ok else "[INFO]"
+            volume_status = "[OK]" if volume_ok else "[WEAK]"
+            
+            if momentum_ok or volume_ok:
+                logger.info(
+                    f"🟢 LONG ENTRY: Price ${current_price:.2f} > EMA50 ${ema50:.2f} | "
+                    f"Momentum {momentum_status} {momentum_pct:+.3f}% | "
+                    f"Volume {volume_status} {volume_ratio:.2f}x | "
+                    f"EMA20 ${ema20:.2f} | "
+                    f"Daily {daily_context} ({daily_change:+.2f}%)"
+                )
+                return "LONG"
+            else:
+                logger.debug(
+                    f"LONG blocked: Price > EMA50 but no confirmation | "
+                    f"Momentum {momentum_pct:+.3f}% (need ≥0.1%) | "
+                    f"Volume {volume_ratio:.2f}x (need ≥0.5x)"
+                )
         
-        # LONG (BUY CFD) - Profit from UPTREND
-        # Conditions: Price rising + strong momentum + volume spike + direction confirmed
-        # Bias: Extra confidence on UP days (daily_bias = 1.5)
-        if (price_change >= STRATEGY_CONFIG["entry_threshold"] and 
-            price_direction_streak > 0):
-            logger.info(f"🟢 LONG signal: change={price_change*100:.3f}%, streak={price_direction_streak}, vol_spike={current_volume/avg_volume:.1f}x | Daily {daily_context} ({daily_change:+.2f}%) bias={daily_bias}")
-            return "LONG"
-        
-        # SHORT (SELL CFD) - Profit from DOWNTREND (only if enabled in config)
-        # Conditions: Price falling + strong momentum + volume spike + direction confirmed
-        # Bias: Extra confidence on DOWN days (daily_bias = 1.5)
-        elif (price_change <= -STRATEGY_CONFIG["entry_threshold"] and 
-              price_direction_streak < 0):
-            # Check if SHORT/SELL positions are allowed
-            from bot.config import ALLOW_SELL_POSITIONS
-            if ALLOW_SELL_POSITIONS:
-                logger.info(f"🔴 SHORT signal: change={price_change*100:.3f}%, streak={price_direction_streak}, vol_spike={current_volume/avg_volume:.1f}x | Daily {daily_context} ({daily_change:+.2f}%) bias={daily_bias}")
+        # ✅ SHORT ENTRY: Trend DOWN (price < EMA50) + (Momentum OR Volume)
+        elif current_price < ema50:
+            try:
+                from config import ALLOW_SELL_POSITIONS
+            except ImportError:
+                from bot.config import ALLOW_SELL_POSITIONS
+
+            if not ALLOW_SELL_POSITIONS:
+                # Long-only mode: always allow LONG when shorts disabled
+                # (mean-reversion fallback - price below EMA50 may bounce back up)
+                logger.info(
+                    f"🟢 LONG (fallback, shorts disabled): Price ${current_price:.2f} < EMA50 ${ema50:.2f} | "
+                    f"Momentum {momentum_pct:+.3f}% | Volume {volume_ratio:.2f}x | EMA20 ${ema20:.2f}"
+                )
+                return "LONG"
+            
+            # Check flexible confirmation: momentum OR volume
+            momentum_status = "[PRIMARY]" if momentum_ok else "[INFO]"
+            volume_status = "[OK]" if volume_ok else "[WEAK]"
+            
+            if momentum_ok or volume_ok:
+                logger.info(
+                    f"🔴 SHORT ENTRY: Price ${current_price:.2f} < EMA50 ${ema50:.2f} | "
+                    f"Momentum {momentum_status} {momentum_pct:+.3f}% | "
+                    f"Volume {volume_status} {volume_ratio:.2f}x | "
+                    f"EMA20 ${ema20:.2f} | "
+                    f"Daily {daily_context} ({daily_change:+.2f}%)"
+                )
                 return "SHORT"
             else:
-                logger.info(f"⚪ SHORT signal filtered (ALLOW_SELL_POSITIONS=false): change={price_change*100:.3f}%, streak={price_direction_streak}")
-                return None
+                logger.debug(
+                    f"SHORT blocked: Price < EMA50 but no confirmation | "
+                    f"Momentum {momentum_pct:+.3f}% (need ≥0.1%) | "
+                    f"Volume {volume_ratio:.2f}x (need ≥0.5x)"
+                )
         
         return None
     
-    def check_exit_signals(self, current_price: float) -> Optional[str]:
+    def check_exit_signals(self, symbol: str, current_price: float) -> Optional[str]:
         """
         Check if we should exit current position (CFD-correct)
         
@@ -209,10 +247,10 @@ class MicroTradingStrategy:
         
         Returns: "TP", "SL", "TIME", "FLAT", or None
         """
-        if self.current_position is None:
+        if symbol not in self.current_positions:
             return None
         
-        trade = self.current_position
+        trade = self.current_positions[symbol]
         elapsed_seconds = (datetime.now() - trade.entry_time).total_seconds()
 
         # Assess if the trend is still in our favor to optionally widen the stop
@@ -304,8 +342,8 @@ class MicroTradingStrategy:
             self.rules_violated_log.append(rule_msg)
             return False, rule_msg
         
-        # RULE 4.1: Risk per trade
-        if self.current_position is not None:
+        # RULE 4.1: Risk per trade - check if ANY symbol has open position
+        if len(self.current_positions) > 0:
             return False, "Already have open position"
         
         # RULE 4.4: Cooldown after consecutive losses
@@ -380,12 +418,12 @@ class MicroTradingStrategy:
         }
         
         # Update any open position
-        if self.current_position is not None:
-            exit_reason = self.check_exit_signals(tick.price)
+        if tick.symbol in self.current_positions:
+            exit_reason = self.check_exit_signals(tick.symbol, tick.price)
             
             if exit_reason:
-                trade_to_close = self.current_position
-                self._close_position(tick.price, exit_reason)
+                trade_to_close = self.current_positions[tick.symbol]
+                self._close_position(tick.symbol, tick.price, exit_reason)
                 event["action"] = "CLOSE"
                 event["trade"] = trade_to_close
                 event["reason"] = exit_reason
@@ -407,39 +445,54 @@ class MicroTradingStrategy:
                 entry_signal = self.check_entry_signals()
                 
                 if entry_signal:
-                    self._open_position(tick.price, entry_signal)
+                    self._open_position(tick.symbol, tick.price, entry_signal)
                     event["action"] = "OPEN"
-                    event["trade"] = self.current_position
+                    event["trade"] = self.current_positions[tick.symbol]
                     event["reason"] = "MOMENTUM_BURST"
                 else:
-                    # Log why we didn't enter
-                    no_trade_reasons = []
-                    
-                    # Check volatility
+                    # New diagnostics aligned with EMA50 logic
+                    diagnostics = []
+
+                    # Volatility check
                     rule_1_ok, rule_1_msg = self.check_rule_1_volatility()
                     if not rule_1_ok:
-                        no_trade_reasons.append(rule_1_msg)
-                    
-                    # Check direction streak
-                    price_direction_streak = self.tick_buffer.get_price_direction_streak()
-                    min_streak = STRATEGY_CONFIG.get("min_direction_streak", 3)
-                    if abs(price_direction_streak) < min_streak:
-                        no_trade_reasons.append(f"Direction streak weak: {price_direction_streak} (need ±{min_streak})")
-                    
-                    # Check volume
+                        diagnostics.append(rule_1_msg)
+
+                    # Trend + confirmation check
+                    ema50 = self.tick_buffer.calculate_ema_50()
+                    ema20 = self.tick_buffer.calculate_ema_20()
+                    current_price = self.tick_buffer.get_latest_price()
+                    momentum_pct = self.tick_buffer.calculate_price_change()
                     current_volume = self.tick_buffer.get_latest_volume()
                     avg_volume = self.tick_buffer.calculate_avg_volume()
-                    volume_multiplier = STRATEGY_CONFIG["volume_spike_multiplier"]
-                    if current_volume <= avg_volume * volume_multiplier:
-                        no_trade_reasons.append(f"Volume low: {current_volume} (need >{avg_volume * volume_multiplier:.1f})")
-                    
-                    # Check price momentum
-                    price_change = self.tick_buffer.calculate_price_change()
-                    threshold = STRATEGY_CONFIG["entry_threshold"]
-                    if abs(price_change) < threshold:
-                        no_trade_reasons.append(f"Momentum weak: {abs(price_change)*100:.3f}% (need ≥{threshold*100:.3f}%)")
-                    
-                    combined_reason = " | ".join(no_trade_reasons) if no_trade_reasons else "No clear signal"
+                    volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
+                    momentum_threshold = 0.001  # 0.1%
+                    confirmation_ok = (abs(momentum_pct) >= momentum_threshold) or (volume_ratio >= 0.5)
+
+                    if ema50 is None or current_price is None:
+                        diagnostics.append("EMA window not ready")
+                    else:
+                        if current_price > ema50:
+                            if not confirmation_ok:
+                                diagnostics.append(
+                                    f"Long blocked: momentum {momentum_pct:+.3f}% (<0.1%) and volume {volume_ratio:.2f}x (<0.5x)"
+                                )
+                        elif current_price < ema50:
+                            try:
+                                from config import ALLOW_SELL_POSITIONS
+                            except ImportError:
+                                from bot.config import ALLOW_SELL_POSITIONS
+
+                            if not ALLOW_SELL_POSITIONS:
+                                diagnostics.append("Short blocked: ALLOW_SELL_POSITIONS=false")
+                            elif not confirmation_ok:
+                                diagnostics.append(
+                                    f"Short blocked: momentum {momentum_pct:+.3f}% (<0.1%) and volume {volume_ratio:.2f}x (<0.5x)"
+                                )
+                        else:
+                            diagnostics.append("Price ~ EMA50 (no trend)")
+
+                    combined_reason = " | ".join(diagnostics) if diagnostics else "No clear signal"
                     event["no_trade_reason"] = combined_reason
                     logger.debug(f"⚠️ No entry: {combined_reason}")
         else:
@@ -448,7 +501,7 @@ class MicroTradingStrategy:
         event["metrics"] = self.get_current_metrics()
         return event
     
-    def _open_position(self, entry_price: float, direction: str):
+    def _open_position(self, symbol: str, entry_price: float, direction: str):
         """Open a new trade with daily market context"""
         daily_change = self.current_daily_data.todays_change_pct if self.current_daily_data else 0.0
         daily_context = "DOWN" if daily_change < 0 else "UP" if daily_change > 0 else "NEUTRAL"
@@ -456,34 +509,37 @@ class MicroTradingStrategy:
 
         position_size, sizing_note = self._compute_position_size(entry_price)
         
-        self.current_position = Trade(
+        trade = Trade(
             entry_time=datetime.now(),
             entry_price=entry_price,
             direction=direction,
             entry_reason="MOMENTUM_BURST",
             position_size=position_size,
+            symbol=symbol,
         )
+        self.current_positions[symbol] = trade
         logger.info(
             f"OPEN {direction} @ ${entry_price:.2f} | size {position_size:.0f} shares | "
             f"Daily {daily_context} ({daily_change:+.2f}%) bias={daily_bias:.1f}x | {sizing_note}"
         )
     
-    def _close_position(self, exit_price: float, exit_reason: str):
+    def _close_position(self, symbol: str, exit_price: float, exit_reason: str):
         """Close the current position"""
         from datetime import timedelta
         
-        if self.current_position is None:
+        if symbol not in self.current_positions:
             return
         
-        self.current_position.close(exit_price, exit_reason)
-        self.closed_trades.append(self.current_position)
-        self.metrics.update_from_closed_trade(self.current_position)
+        trade = self.current_positions[symbol]
+        trade.close(exit_price, exit_reason)
+        self.closed_trades.append(trade)
+        self.metrics.update_from_closed_trade(trade)
         
         # Track hourly trade count
         self.hourly_trade_count += 1
         
         # Implement RULE 4.4: Cooldown after consecutive losses
-        if self.current_position.pnl < 0:
+        if trade.pnl < 0:
             self.consecutive_losses_counter += 1
             
             if self.consecutive_losses_counter >= PROFESSIONAL_RULES.get("rule_4_4_cooldown_after_losses", {}).get("consecutive_losses_threshold", 2):
@@ -493,10 +549,10 @@ class MicroTradingStrategy:
         else:
             self.consecutive_losses_counter = 0
         
-        logger.info(f"CLOSE {self.current_position.direction} @ ${exit_price:.2f} ({exit_reason}) "
-                   f"| PnL: ${self.current_position.pnl:.2f} ({self.current_position.pnl_pct*100:.2f}%)")
+        logger.info(f"CLOSE {trade.direction} @ ${exit_price:.2f} ({exit_reason}) "
+                   f"| PnL: ${trade.pnl:.2f} ({trade.pnl_pct*100:.2f}%)")
         
-        self.current_position = None
+        del self.current_positions[symbol]
     
     def get_current_metrics(self) -> dict:
         """Return current strategy metrics"""
@@ -512,5 +568,5 @@ class MicroTradingStrategy:
             "max_drawdown": self.metrics.max_drawdown,
             "current_drawdown": self.metrics.current_drawdown,
             "consecutive_losses": self.metrics.consecutive_losses,
-            "open_position": self.current_position is not None,
+            "open_positions": len(self.current_positions),
         }

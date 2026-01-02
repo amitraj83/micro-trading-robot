@@ -1,264 +1,201 @@
-# Professional Trading Rules Engine - NEW PRIORITY STACK
-# RULE PRIORITY (ENFORCED ORDER):
-# 1. Risk & Kill Switch
-# 2. Exit Rules
-# 3. Market & Regime Filters
-# 4. Trend & Bias Rules
-# 5. Entry Rules
-# 6. Operational / Analytics
-# No lower-priority rule may override a higher one.
+# ═══════════════════════════════════════════════════════════════════════════════════
+# TREND-CAPTURE BOT RULES: EMA50/EMA20 + ATR-based Risk Management (FLEXIBLE VERSION)
+# ═══════════════════════════════════════════════════════════════════════════════════
+# Strategy: Identify trending moves, enter on pullbacks OR momentum breakouts,
+# use ATR-based stops and 2× ATR trailing take-profit with relaxed confirmations
+# ═══════════════════════════════════════════════════════════════════════════════════
 
 PROFESSIONAL_RULES = {
-    # ============================================================================
-    # 1️⃣ MARKET, REGIME & VOLATILITY RULES (Decide IF trading is allowed)
-    # ============================================================================
-    "rule_1_1_volatility_gate": {
+    # ═════════════════════════════════════════════════════════════════════════════
+    # 1️⃣ TREND DETECTION RULES
+    # ═════════════════════════════════════════════════════════════════════════════
+    "rule_1_ema_trend_detection": {
         "enabled": True,
-        "description": "Volatility Gate - Trade ONLY if ALL conditions are true",
-        "min_range_30s_pct": 0.002,  # 0.20% minimum range in 30s
-        "min_range_10s_pct": 0.0015,  # 0.15% minimum movement in 10s
-        "window_seconds_long": 30,
-        "window_seconds_short": 10,
+        "description": "Identify trend using EMA50 (primary) and EMA20 (confirmation)",
+        "ema_50_period": 50,
+        "ema_20_period": 20,
+        "uptrend_condition": "price > ema_50",
+        "downtrend_condition": "price < ema_50",
+        "fast_confirm": "price > ema_20 for uptrend, price < ema_20 for downtrend (optional)",
+        "trend_strength_ema_distance_min_pct": 0.0,  # RELAXED: No minimum distance requirement
     },
 
-    "rule_1_2_liquidity_spread_filter": {
+    "rule_2_atr_volatility_measure": {
         "enabled": True,
-        "description": "Spread ≤ 50% of TP, cancel if spread widens",
-        "max_spread_vs_profit": 0.5,
+        "description": "Calculate ATR for position sizing, stops, and TP scaling",
+        "atr_period": 14,
+        "atr_multiplier_stop_loss": 1.0,     # SL = 1× ATR from entry
+        "atr_multiplier_take_profit": 2.0,   # TP = 2× ATR from entry (risk:reward 1:2)
+        "min_atr_threshold_pct": 0.0,        # RELAXED: No minimum ATR - allow all volatility levels
     },
 
-    "rule_1_3_session_rule": {
+    # ═════════════════════════════════════════════════════════════════════════════
+    # 2️⃣ ENTRY RULES
+    # ═════════════════════════════════════════════════════════════════════════════
+    "rule_3_pullback_entry": {
         "enabled": True,
-        "description": "Trade only during regular session; flat by 4 PM; no overnight holds",
-        "session_end_time": "16:00",
-        "no_overnight_holds": True,
+        "description": "Enter on minor pullback (30-50%) OR momentum breakout beyond last swing",
+        "pullback_optional": True,            # RELAXED: Pullback is now optional
+        "pullback_min_pct": 0.30,              # Min 30% retracement if pullback occurs
+        "pullback_max_pct": 0.50,              # Max 50% retracement if pullback occurs
+        "lookback_bars_for_swing": 5,          # Bars to identify swing high/low
+        "allow_momentum_breakout": True,       # Allow entry on momentum breakout beyond swing (no pullback needed)
+        "uptrend_pullback": "last_low >= swing_low - (swing_high - swing_low) * 0.5 OR price > swing_high with momentum",
+        "downtrend_pullback": "last_high <= swing_high + (swing_high - swing_low) * 0.5 OR price < swing_low with momentum",
     },
 
-    "rule_1_4_market_regime_detection": {
+    "rule_4_momentum_confirmation": {
         "enabled": True,
-        "description": "Detect regime from last 5 one-minute candles; disable momentum in ranges",
-        "lookback_candles": 5,
-        "trending_hh_hl": True,
-        "trending_lh_ll": True,
-        "ranging_overlap": True,
-        "flat_vwap": True,
-        "disable_momentum_if_range": True,
+        "description": "Price momentum ≥ 0.1% over last 1-3 ticks (PRIMARY entry trigger)",
+        "min_momentum_pct": 0.001,              # 0.1% minimum momentum
+        "momentum_lookback_ticks": 3,           # Check last 1-3 ticks
+        "momentum_direction_matches_trend": True,
+        "momentum_is_primary_trigger": True,    # RELAXED: Momentum alone can trigger entry if trend confirmed
     },
 
-    # ============================================================================
-    # 2️⃣ TREND, BIAS & CONTEXT RULES (Decide WHICH direction is allowed)
-    # ============================================================================
-    "rule_2_1_daily_bias_vwap": {
+    "rule_5_volume_confirmation": {
         "enabled": True,
-        "description": "Bias from 1m VWAP and today change",
-        "bullish_change_floor_pct": -0.003,  # >= -0.3%
-        "bearish_change_cap_pct": 0.003,     # <= +0.3%
-        "require_price_vs_vwap": True,
+        "description": "Current volume ≥ 50-70% of recent average (optional for strong momentum)",
+        "min_volume_pct_of_avg": 0.50,          # RELAXED: 50% threshold (down from 70%)
+        "volume_lookback_bars": 20,             # Last N bars for average
+        "volume_confirmation_optional": True,  # Optional if momentum is strong (≥0.2%)
     },
 
-    "rule_2_2_previous_day_levels": {
-        "enabled": True,
-        "description": "Prev day high/low/close context",
-        "proximity_pct": 0.0015,  # ±0.15%
-        "favor_shorts_near_high": True,
-        "favor_longs_near_low": True,
-        "allow_continuation_on_clean_break": True,
+    "rule_6_avoid_choppy_zones": {
+        "enabled": False,                       # RELAXED: Disabled - allow all volatility levels
+        "description": "Skip entries during choppy/low volatility zones (DISABLED)",
+        "min_atr_pct_threshold": 0.0,           # N/A
+        "require_atr_expansion": False,
     },
 
-    "rule_2_3_direction_confirmation": {
+    # ═════════════════════════════════════════════════════════════════════════════
+    # 3️⃣ EXIT RULES (Critical)
+    # ═════════════════════════════════════════════════════════════════════════════
+    "rule_7_trend_reversal_exit": {
         "enabled": True,
-        "description": "Direction confirmation for entry consideration",
-        "min_consecutive_seconds": 3,
-        "min_net_move_pct": 0.0008,
-        "volume_spike_multiplier": 1.3,
+        "description": "Exit when trend reverses: price closes below EMA50 (uptrend) or above (downtrend)",
+        "uptrend_exit_condition": "price <= ema_50",
+        "downtrend_exit_condition": "price >= ema_50",
+        "require_close_confirmation": True,
     },
 
-    "rule_2_4_trend_alignment": {
+    "rule_8_atr_stop_loss": {
         "enabled": True,
-        "description": "Trade only in bias direction; no counter-trend",
-        "long_only_when_bias_up": True,
-        "short_only_when_bias_down": True,
-        "no_trade_when_unclear": True,
+        "description": "ATR-based stop-loss: 1× ATR below/above entry",
+        "stop_loss_atr_multiplier": 1.0,
+        "hard_stop_loss": True,
+        "never_move_sl_against_position": True,
     },
 
-    "rule_2_5_position_constraint": {
+    "rule_9_trailing_take_profit": {
         "enabled": True,
-        "description": "Max 1 open position; no same-direction stacking",
-        "max_open_positions": 1,
+        "description": "Trailing TP at 2× ATR or trail with EMA20",
+        "initial_tp_atr_multiplier": 2.0,      # Start at 2× ATR
+        "trail_with_ema20": True,              # Trail profit using EMA20 as dynamic support
+        "ema20_trailing_offset_pct": 0.0005,   # 0.05% below EMA20 for long
     },
 
-    # ============================================================================
-    # 3️⃣ ENTRY RULES (Decide WHEN to enter)
-    # ============================================================================
-    "rule_3_1_momentum_quality_filter": {
+    "rule_10_quick_loss_exit": {
         "enabled": True,
-        "description": "Momentum strong and early",
-        "min_momentum_strength_pct": 0.70,
-        "max_entry_position_in_move": 0.30,
-        "max_extended_move_pct": 0.012,
+        "description": "Exit if no profit within 10-15 seconds of entry (increased buffer)",
+        "max_seconds_without_profit": 15,       # RELAXED: Increased from 5 to 15 seconds
+        "exit_if_below_breakeven_after_s": True,
+        "exit_before_sl_if_no_movement": True,
     },
 
-    "rule_3_2_pullback_continuation": {
+    # ═════════════════════════════════════════════════════════════════════════════
+    # 4️⃣ RISK MANAGEMENT
+    # ═════════════════════════════════════════════════════════════════════════════
+    "rule_11_position_sizing": {
         "enabled": True,
-        "description": "Trend → 2–3 tick pullback → continuation with volume spike",
-        "min_pullback_ticks": 2,
-        "max_pullback_ticks": 3,
-        "require_volume_spike_on_continuation": True,
-    },
-
-    "rule_3_3_location_filter": {
-        "enabled": True,
-        "description": "Only enter at top/bottom 25% of 1m range",
-        "top_quartile_long": True,
-        "bottom_quartile_short": True,
-    },
-
-    "rule_3_4_vwap_interaction": {
-        "enabled": True,
-        "description": "VWAP as S/R; stretched ≥0.4% expects snapback",
-        "stretch_threshold_pct": 0.004,
-        "allow_counter_with_tight_tp": True,
-    },
-
-    # ============================================================================
-    # 4️⃣ EXIT RULES (Most important)
-    # ============================================================================
-    "rule_4_1_fixed_asymmetric_rr": {
-        "enabled": True,
-        "description": "Fixed Asymmetric R:R",
-        "tp_pct": 0.0008,
-        "sl_pct": 0.0004,
-        "risk_reward_ratio": 2.0,
-    },
-
-    "rule_4_2_smart_time_stop": {
-        "enabled": True,
-        "description": "Exit if not profitable quickly",
-        "max_hold_seconds": 10,
-        "exit_if_below_breakeven_after_s": 8,
-        "exit_if_no_movement_seconds": 8,
-    },
-
-    "rule_4_3_momentum_failure_exit": {
-        "enabled": True,
-        "description": "Exit if momentum fails",
-        "flat_ticks_threshold": 2,
-        "momentum_reversal_pct": 0.30,
-        "volume_collapse_threshold": 0.5,
-    },
-
-    "rule_4_4_early_profit_requirement": {
-        "enabled": True,
-        "description": "Trade must show profit within 2s or exit early",
-        "max_seconds_to_show_profit": 2,
-        "exit_before_sl_if_no_profit": True,
-    },
-
-    "rule_4_5_vwap_level_rejection_exit": {
-        "enabled": True,
-        "description": "Exit early if stall/reject at VWAP or prev-day level",
-        "require_volume_confirmation": True,
-    },
-
-    # ============================================================================
-    # 5️⃣ RISK MANAGEMENT RULES (Survival & scaling layer)
-    # ============================================================================
-    "rule_5_1_position_sizing": {
-        "enabled": True,
-        "description": "Position sizing and per-trade risk",
-        "position_size": 75.0,
-        "max_risk_pct": 0.0025,
-        "account_size": 100.0,
-    },
-
-    "rule_5_2_leverage_cap": {
-        "enabled": True,
-        "description": "Max effective leverage",
+        "description": "Fixed % of capital per trade, respecting ATR",
+        "risk_per_trade_pct": 0.01,             # Risk 1% of capital per trade
+        "position_size": 100.0,                 # Share count (will scale with ATR)
         "max_leverage": 5.0,
+        "min_position_size": 1.0,
     },
 
-    "rule_5_3_daily_kill_switch": {
+    "rule_12_max_concurrent_trades": {
         "enabled": True,
-        "description": "Stop trading if daily PnL ≤ -5%",
+        "description": "Max 1 open trade per symbol, global throttle 5 min",
+        "max_trades_per_symbol": 1,
+        "global_trades_limit": 1,
+        "trade_cooldown_seconds": 300,          # 5 minute cooldown between trades
+    },
+
+    "rule_13_daily_kill_switch": {
+        "enabled": True,
+        "description": "Stop trading if daily loss ≤ -5%",
         "daily_loss_limit_pct": -0.05,
+        "halt_on_kill_switch": True,
     },
 
-    "rule_5_4_cooldown_rule": {
+    "rule_14_consecutive_loss_pause": {
         "enabled": True,
-        "description": "3 consecutive losses → pause 90s; reset on win",
+        "description": "3 consecutive losses → pause 120 seconds",
         "consecutive_losses_threshold": 3,
-        "cooldown_seconds": 90,
+        "pause_seconds": 120,
         "reset_on_win": True,
     },
 
-    "rule_5_5_trade_frequency_limit": {
+    # ═════════════════════════════════════════════════════════════════════════════
+    # 5️⃣ LOGGING & DIAGNOSTICS
+    # ═════════════════════════════════════════════════════════════════════════════
+    "rule_15_comprehensive_logging": {
         "enabled": True,
-        "description": "Max 15 trades per hour",
-        "max_trades_per_hour": 15,
-    },
-
-    # ============================================================================
-    # 6️⃣ OPERATIONAL & PERFORMANCE RULES
-    # ============================================================================
-    "rule_6_1_mandatory_logging": {
-        "enabled": True,
-        "description": "Log every trade with regime/bias context",
-        "track_entry_exit_reason": True,
+        "description": "Log all ticks with trend, momentum, volume, entry type, and PnL",
+        "log_format": "[tick #] timestamp | $price | Vol: volume | ⚪ LONG/SHORT | OPEN/CLOSED | Trades: X | PnL: ±X.XX",
+        "log_details": "Trend: UP/DOWN | Momentum: X.XX% | EMA50: $X.XX | EMA20: $X.XX | ATR: $X.XX | Volume OK: Yes/No",
+        "track_entry_reason": True,
+        "track_exit_reason": True,
         "track_pnl": True,
-        "track_slippage": True,
         "track_time_in_trade": True,
-        "track_spread_at_entry": True,
-        "track_hour_of_day": True,
-        "track_regime": True,
-        "track_bias": True,
+        "track_atr_measurements": True,
+        "track_ema_values": True,
     },
 
-    "rule_6_2_performance_adaptation": {
-        "enabled": True,
-        "description": "Weekly adaptation: disable losing hours; tighten before loosening",
-        "disable_negative_hours": True,
-        "tighten_before_loosen": True,
+    # ═════════════════════════════════════════════════════════════════════════════
+    # CONFIRMATION LOGIC (RELAXED / FLEXIBLE)
+    # ═════════════════════════════════════════════════════════════════════════════
+    "confirmation_logic": {
+        "description": "Flexible entry confirmation - not all conditions required simultaneously",
+        "entry_triggers": [
+            "TREND (Price > EMA50 for UP, < EMA50 for DOWN) + MOMENTUM (≥0.1%)",
+            "TREND + VOLUME (≥50% of avg)",
+            "TREND + MOMENTUM (≥0.2%) [strong move - volume optional]",
+        ],
+        "required_minimum": "At least TREND + ONE of (MOMENTUM or VOLUME)",
+        "pullback_optional": True,
+        "ema20_confirmation": "Optional but preferred for added confirmation",
     },
 
-    # ============================================================================
-    # PRIORITY ORDER (no lower rule may override a higher one)
-    # ============================================================================
+    # ═════════════════════════════════════════════════════════════════════════════
+    # PRIORITY ORDER (Execution sequence - no lower rule overrides higher)
+    # ═════════════════════════════════════════════════════════════════════════════
     "rule_priority": [
-        # 1. Risk & Kill Switch
-        "rule_5_3_daily_kill_switch",
-        "rule_5_4_cooldown_rule",
-        "rule_5_1_position_sizing",
-        "rule_5_2_leverage_cap",
-        "rule_5_5_trade_frequency_limit",
+        # 1. RISK & SURVIVAL (First check)
+        "rule_13_daily_kill_switch",
+        "rule_14_consecutive_loss_pause",
+        "rule_12_max_concurrent_trades",
+        "rule_11_position_sizing",
 
-        # 2. Exit Rules
-        "rule_4_4_early_profit_requirement",
-        "rule_4_2_smart_time_stop",
-        "rule_4_3_momentum_failure_exit",
-        "rule_4_5_vwap_level_rejection_exit",
-        "rule_4_1_fixed_asymmetric_rr",
+        # 2. EXIT & RISK (Most critical - exits always checked)
+        "rule_8_atr_stop_loss",
+        "rule_10_quick_loss_exit",
+        "rule_7_trend_reversal_exit",
+        "rule_9_trailing_take_profit",
 
-        # 3. Market & Regime Filters
-        "rule_1_1_volatility_gate",
-        "rule_1_2_liquidity_spread_filter",
-        "rule_1_3_session_rule",
-        "rule_1_4_market_regime_detection",
+        # 3. TREND & MARKET CONTEXT
+        "rule_1_ema_trend_detection",
+        "rule_2_atr_volatility_measure",
+        "rule_6_avoid_choppy_zones",
 
-        # 4. Trend & Bias Rules
-        "rule_2_1_daily_bias_vwap",
-        "rule_2_2_previous_day_levels",
-        "rule_2_3_direction_confirmation",
-        "rule_2_4_trend_alignment",
-        "rule_2_5_position_constraint",
+        # 4. ENTRY CONDITIONS (Only checked when trend + risk rules pass)
+        "rule_3_pullback_entry",
+        "rule_4_momentum_confirmation",
+        "rule_5_volume_confirmation",
 
-        # 5. Entry Rules
-        "rule_3_1_momentum_quality_filter",
-        "rule_3_2_pullback_continuation",
-        "rule_3_3_location_filter",
-        "rule_3_4_vwap_interaction",
-
-        # 6. Operational / Analytics
-        "rule_6_1_mandatory_logging",
-        "rule_6_2_performance_adaptation",
+        # 5. LOGGING & ANALYSIS (Last - after all decisions made)
+        "rule_15_comprehensive_logging",
     ],
 }

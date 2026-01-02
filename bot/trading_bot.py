@@ -3,9 +3,16 @@ import json
 import websockets
 import logging
 from datetime import datetime
-from bot.models import Tick
-from bot.strategy import MicroTradingStrategy
-from bot.config import WEBSOCKET_CONFIG, LOG_CONFIG, SYMBOL
+
+# Handle both module and package import contexts
+try:
+    from models import Tick
+    from strategy import MicroTradingStrategy
+    from config import WEBSOCKET_CONFIG, LOG_CONFIG, SYMBOL
+except ImportError:  # Fallback when imported as part of the bot package
+    from bot.models import Tick
+    from bot.strategy import MicroTradingStrategy
+    from bot.config import WEBSOCKET_CONFIG, LOG_CONFIG, SYMBOL
 
 # Setup logging
 logging.basicConfig(

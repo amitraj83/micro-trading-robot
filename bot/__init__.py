@@ -1,18 +1,17 @@
-# Bot package
-from bot.config import STRATEGY_CONFIG, RISK_CONFIG, WEBSOCKET_CONFIG
-from bot.models import Tick, Trade, StrategyMetrics
-from bot.tick_buffer import TickBuffer
-from bot.strategy import MicroTradingStrategy
-from bot.trading_bot import TradingBotClient
+# Bot package - v2 architecture (async momentum trading)
+from bot.bot import (
+    SymbolState,
+    states,
+    handle_bar,
+    websocket_loop,
+    log_trade,
+)
 
+__version__ = "2.0.0"
 __all__ = [
-    "STRATEGY_CONFIG",
-    "RISK_CONFIG",
-    "WEBSOCKET_CONFIG",
-    "Tick",
-    "Trade",
-    "StrategyMetrics",
-    "TickBuffer",
-    "MicroTradingStrategy",
-    "TradingBotClient",
+    "SymbolState",
+    "states",
+    "handle_bar",
+    "websocket_loop",
+    "log_trade",
 ]

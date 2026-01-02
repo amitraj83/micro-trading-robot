@@ -25,6 +25,7 @@ class Trade:
     direction: str  # "LONG" or "SHORT"
     entry_reason: str  # "MOMENTUM_BURST"
     position_size: float = 1.0
+    symbol: str = ""  # Trading symbol (e.g., "AAPL")
     
     exit_time: Optional[datetime] = None
     exit_price: Optional[float] = None

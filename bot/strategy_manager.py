@@ -5,8 +5,16 @@ Routes ticks to the appropriate strategy based on symbol.
 """
 
 from typing import Dict, List, Any
-from bot.strategy import MicroTradingStrategy
-from bot.models import Tick
+
+# Support running both as a package import (bot.strategy_manager)
+# and as a direct script/module import where the current working
+# directory is the project root.
+try:
+    from strategy import MicroTradingStrategy
+    from models import Tick
+except ImportError:  # Fallback when imported as part of the bot package
+    from bot.strategy import MicroTradingStrategy
+    from bot.models import Tick
 
 
 class StrategyManager:
@@ -27,6 +35,22 @@ class StrategyManager:
             self.strategies[symbol] = MicroTradingStrategy()
         
         print(f"[StrategyManager] Initialized {len(symbols)} strategies: {symbols}")
+
+    def add_symbol(self, symbol: str):
+        symbol = symbol.upper()
+        if symbol in self.strategies:
+            return
+        self.symbols.append(symbol)
+        self.strategies[symbol] = MicroTradingStrategy()
+        print(f"[StrategyManager] Added strategy for {symbol}")
+
+    def remove_symbol(self, symbol: str):
+        symbol = symbol.upper()
+        if symbol in self.strategies:
+            self.strategies.pop(symbol)
+        if symbol in self.symbols:
+            self.symbols = [s for s in self.symbols if s != symbol]
+        print(f"[StrategyManager] Removed strategy for {symbol}")
     
     def process_tick(self, symbol: str, tick: Tick) -> Dict[str, Any]:
         """

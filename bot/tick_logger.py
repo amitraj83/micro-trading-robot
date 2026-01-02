@@ -1,7 +1,12 @@
 import json
 import os
 from datetime import datetime
-from bot.models import Tick
+
+# Support both module and package import contexts
+try:
+    from models import Tick
+except ImportError:  # Fallback when imported as part of the bot package
+    from bot.models import Tick
 
 class TickLogger:
     """Log all ticks and trades for retrospective analysis"""
@@ -39,8 +44,8 @@ class TickLogger:
             "symbol": tick.symbol,
             "action": event["action"],
             "reason": event["reason"],
-                        "no_trade_reason": event.get("no_trade_reason"),
-            "position_state": "OPEN" if event["metrics"]["open_position"] else "CLOSED",
+            "no_trade_reason": event.get("no_trade_reason"),
+            "position_state": "OPEN" if event["metrics"]["open_positions"] > 0 else "CLOSED",
             "metrics": {
                 "total_trades": event["metrics"]["total_trades"],
                 "daily_pnl": event["metrics"]["daily_pnl"],
