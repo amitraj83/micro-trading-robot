@@ -85,6 +85,8 @@ async def handle_client(websocket, path):
                 data = json.loads(message)
                 msg_type = data.get("type")
                 
+                logger.info(f"[handle_client] Received message type: {msg_type}, keys: {list(data.keys())}")
+                
                 if msg_type == "PING":
                     await websocket.send(json.dumps({"type": "PONG"}))
                 
@@ -95,6 +97,42 @@ async def handle_client(websocket, path):
                         "data": trade_events,
                         "timestamp": datetime.now(tz=TIMEZONE).isoformat()
                     }))
+                
+                elif msg_type == "TRADE_EVENT" or data.get("action") in ("OPEN", "CLOSE"):
+                    # Bot sending trade event - broadcast to all dashboard clients
+                    symbol = data.get("symbol")
+                    action = data.get("action")
+                    
+                    logger.info(f"[handle_client] Trade event received: {symbol} {action}")
+                    
+                    if symbol and action:
+                        # Reformat to standard TRADE_EVENT format for dashboard
+                        event_msg = {
+                            "type": "TRADE_EVENT",
+                            "symbol": symbol,
+                            "action": action,
+                            "reason": data.get("reason"),
+                            "price": data.get("price"),
+                            "trade": data.get("trade"),
+                            "timestamp": datetime.now(tz=TIMEZONE).isoformat()
+                        }
+                        
+                        # Store in trade history
+                        if symbol not in trade_events:
+                            trade_events[symbol] = []
+                        trade_events[symbol].append(event_msg)
+                        
+                        # Broadcast to all connected clients
+                        if connected_clients:
+                            logger.info(f"[handle_client] Broadcasting {action} for {symbol} to {len(connected_clients)} clients")
+                            await asyncio.gather(
+                                *[client.send(json.dumps(event_msg)) for client in connected_clients],
+                                return_exceptions=True
+                            )
+                        
+                        logger.info(f"Broadcasted {action} for {symbol} to {len(connected_clients)} clients")
+                    else:
+                        logger.warning(f"[handle_client] Invalid trade event: symbol={symbol}, action={action}")
             
             except json.JSONDecodeError:
                 logger.error(f"Invalid JSON from client: {message}")

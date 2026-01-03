@@ -11,8 +11,8 @@ import os
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (override existing to honor latest .env)
+load_dotenv(override=True)
 
 
 def load_instruments(filepath: str = "instruments_response.json") -> Dict[str, str]:
@@ -117,47 +117,9 @@ def fetch_gainers_yahoo(screener_type: str = None) -> List[Dict[str, Any]]:
             return gainers
             
         except Exception as e:
+            # Let caller fail over to next platform instead of manual scrape list
             print(f"Error fetching from screener API: {e}")
-            print("Falling back to manual ticker check...")
-            
-            # Fallback: check a broader list of tickers
-            tickers_to_check = ['A', 'AAL', 'AAPL', 'ABBV', 'ABT', 'ACAD', 'ACN', 'ADBE', 'ADI', 'ADM',
-                           'ADSK', 'AEE', 'AEP', 'AERN', 'AES', 'AFG', 'AFSI', 'AGCO', 'AGN', 'AGNC',
-                           'AGRS', 'AGX', 'AGIO', 'AGYS', 'AHH', 'AHL', 'AIG', 'AIV', 'AIRT', 'AJRD',
-                           'ALCO', 'ALC', 'ALKS', 'ALRM', 'ALSK', 'ALXO', 'AMAT', 'AMBC', 'AMBX', 'AMCX',
-                           'RARE', 'FTAI', 'ATER', 'GEVO', 'RIOT', 'MARA', 'CLSK', 'IREN', 'CBRL', 'BBIG']
-            
-            for ticker in tickers_to_check:
-                try:
-                    stock = yf.Ticker(ticker)
-                    info = stock.info
-                    
-                    # Get today's price change
-                    regular_market_price = info.get('regularMarketPrice', 0)
-                    previous_close = info.get('previousClose', 0)
-                    
-                    if previous_close and regular_market_price and previous_close > 0:
-                        change_percent = ((regular_market_price - previous_close) / previous_close) * 100
-                        if change_percent > 0:  # Only positive changes
-                            gainer = {
-                                'ticker': ticker,
-                                'todaysChangePerc': change_percent,
-                                'todaysChange': regular_market_price - previous_close,
-                                'currentPrice': regular_market_price,
-                                'dayOpen': info.get('open', 0) or previous_close,
-                                'dayHigh': info.get('dayHigh', 0) or regular_market_price,
-                                'dayLow': info.get('dayLow', 0) or regular_market_price,
-                                'dayVolume': info.get('volume', 0) or 0,
-                            }
-                            gainers.append(gainer)
-                except Exception:
-                    # Silently skip tickers that fail
-                    continue
-            
-            # Sort by percentage change (highest first)
-            gainers.sort(key=lambda x: x['todaysChangePerc'], reverse=True)
-            
-            return gainers
+            return []
             
     except ImportError:
         print("Error: yfinance not installed. Run 'pip install yfinance'")

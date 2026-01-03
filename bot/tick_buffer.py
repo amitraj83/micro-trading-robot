@@ -39,6 +39,9 @@ class TickBuffer:
         """Calculate total price change in window"""
         if len(self.ticks) < 2:
             return 0.0
+        # Guard against zero prices in historical data
+        if self.ticks[0].price == 0:
+            return 0.0
         return (self.ticks[-1].price - self.ticks[0].price) / self.ticks[0].price
     
     def calculate_volatility(self) -> float:
@@ -56,13 +59,17 @@ class TickBuffer:
         return statistics.stdev(normalized_changes) if len(normalized_changes) > 1 else 0.0
     
     def calculate_momentum(self) -> float:
-        """Calculate recent price momentum (velocity)"""
+        """Calculate momentum: (recent move - old move)"""
         if len(self.ticks) < 2:
             return 0.0
         
         prices = self.get_prices()
         # Simple momentum: recent average move vs old average move
         mid = len(prices) // 2
+        
+        # Guard against zero prices in historical data
+        if prices[mid] == 0 or prices[0] == 0:
+            return 0.0
         
         recent_move = (prices[-1] - prices[mid]) / prices[mid]
         old_move = (prices[mid] - prices[0]) / prices[0]
@@ -150,7 +157,8 @@ class TickBuffer:
         if len(prices) < 2:
             return []
         
-        return [(prices[i+1] - prices[i]) / prices[i] for i in range(len(prices)-1)]
+        # Guard against zero prices in historical data
+        return [(prices[i+1] - prices[i]) / prices[i] for i in range(len(prices)-1) if prices[i] != 0]
     
     def get_last_n_ranges(self, n: int = 3) -> List[float]:
         """Get last N price ranges (high - low) as percentages"""

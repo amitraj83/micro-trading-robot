@@ -22,13 +22,14 @@ import os
 # ======================
 
 POLYGON_API_KEY = os.getenv("POLYGON_API_KEY", "")
+POLYGON_WS_URL = os.getenv("POLYGON_WS_URL", "wss://delayed.massive.com/stocks")
 FAKE_TICKS = os.getenv("FAKE_TICKS", "false").lower() == "true"
 
 # WebSocket URL - use fake server if FAKE_TICKS enabled
 if FAKE_TICKS:
     WS_URL = "ws://localhost:8001"  # Fake Polygon WebSocket server
 else:
-    WS_URL = "wss://delayed.polygon.io/stocks"  # Real Polygon WebSocket
+    WS_URL = POLYGON_WS_URL  # Real aggregates WebSocket
 
 TIMEZONE = pytz.timezone("US/Eastern")
 
@@ -430,7 +431,10 @@ async def websocket_loop():
     """
     try:
         async with websockets.connect(WS_URL) as ws:
-            log_trade("INFO", "BOT", "Connected to Polygon WebSocket")
+            log_trade("INFO", "BOT", f"Connected to WebSocket: {WS_URL}")
+            if POLYGON_API_KEY:
+                await ws.send(json.dumps({"action": "auth", "params": POLYGON_API_KEY}))
+                log_trade("INFO", "BOT", "Auth message sent")
             
             # Subscribe to symbols
             for symbol in SYMBOLS:
@@ -450,6 +454,9 @@ async def websocket_loop():
                     events = data if isinstance(data, list) else [data]
                     
                     for event in events:
+                        if event.get("ev") == "status":
+                            log_trade("INFO", "BOT", f"WS status: {event.get('status')} - {event.get('message')}")
+                            continue
                         # Only process aggregate events
                         if event.get("ev") != "A":
                             continue

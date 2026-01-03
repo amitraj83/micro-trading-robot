@@ -53,6 +53,10 @@ class TickLogger:
                 "win_rate": event["metrics"]["win_rate"],
             }
         }
+
+        calc = event.get("calc")
+        if calc:
+            entry["calc"] = calc
         
         with open(self.tick_log_file, "a") as f:
             f.write(json.dumps(entry) + "\n")

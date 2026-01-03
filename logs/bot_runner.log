@@ -5,3 +5,308 @@ DEBUG: TradingBotClient imported
 DEBUG: Tick imported
 DEBUG: All imports done
 DEBUG: Starting asyncio event loop...
+2026-01-03 17:30:00,964 [INFO] Starting new trading bot with MicroTradingStrategy
+2026-01-03 17:30:00,964 [INFO] Creating new TradingBotClient instance
+2026-01-03 17:30:00,964 [INFO] ⏰ TIME-DECAY EXIT STRATEGY ENABLED: 2min→3.0% | 5min→2.0% | 10min→1.0% | 15min→0.5%
+2026-01-03 17:30:00,964 [INFO] ✅ ENTRY CONFIRMATION ENABLED: confidence_threshold=20%, low_confidence_threshold=10%, bounce_threshold=0.50%, confirmation_window=3-5 ticks
+2026-01-03 17:30:00,964 [INFO] 🎬 FAKE_TICKS=true → Using historical data server at ws://localhost:8001
+2026-01-03 17:30:00,964 [INFO] Connecting to historical data stream at ws://localhost:8001
+2026-01-03 17:30:00,965 [INFO] Subscribing to symbols: BNAI, DVLT, GPUS, UAVS
+2026-01-03 17:30:00,987 [INFO] ✅ Connected to historical data server
+2026-01-03 17:30:00,987 [INFO]   → Subscribed to BNAI
+2026-01-03 17:30:00,987 [INFO]   → Subscribed to DVLT
+2026-01-03 17:30:00,987 [INFO]   → Subscribed to GPUS
+2026-01-03 17:30:00,987 [INFO]   → Subscribed to UAVS
+2026-01-03 17:30:00,987 [INFO] Streaming ticks from ws://localhost:8001...
+2026-01-03 17:30:01,913 [INFO] 📈 Tick #0: BNAI @ $4.03
+2026-01-03 17:30:02,916 [INFO] 📈 Tick #1: DVLT @ $1.07
+2026-01-03 17:30:03,958 [INFO] 📈 Tick #2: BNAI @ $4.04
+2026-01-03 17:30:04,945 [INFO] 📈 Tick #3: UAVS @ $1.22
+2026-01-03 17:30:05,933 [INFO] 📈 Tick #4: DVLT @ $1.07
+2026-01-03 17:30:06,991 [INFO] 📈 Tick #5: GPUS @ $0.29
+2026-01-03 17:30:07,939 [INFO] 📈 Tick #6: BNAI @ $4.04
+2026-01-03 17:30:08,941 [INFO] 📈 Tick #7: BNAI @ $4.04
+2026-01-03 17:30:09,942 [INFO] 📈 Tick #8: DVLT @ $1.08
+2026-01-03 17:30:10,943 [INFO] 📈 Tick #9: GPUS @ $0.29
+2026-01-03 17:30:52,042 [INFO] 📈 Tick #50: BNAI @ $4.04
+2026-01-03 17:31:41,166 [INFO] 🧪 TEST: Injecting test OPEN event for QQQ after 100 ticks
+2026-01-03 17:31:41,174 [INFO] 🔗 Broadcast connection established
+2026-01-03 17:31:41,175 [INFO] 📤 Broadcasted event: OPEN
+2026-01-03 17:31:41,175 [INFO] 📊 Processed 100 ticks, 0 trades
+2026-01-03 17:31:42,167 [INFO] 📈 Tick #100: DVLT @ $1.09
+2026-01-03 17:32:32,248 [INFO] 📈 Tick #150: BNAI @ $4.03
+2026-01-03 17:33:11,324 [WARNING] 🏗️  [DVLT] NEW BUILDING RANGE CREATED (ticks=1) at 17:33:11
+2026-01-03 17:33:21,325 [INFO] 📊 Processed 200 ticks, 0 trades
+2026-01-03 17:33:22,326 [INFO] 📈 Tick #200: BNAI @ $4.01
+2026-01-03 17:33:35,347 [WARNING] 🏗️  [DVLT] BUILDING (10/60 ticks, 17%): $1.0903 - $1.1000
+2026-01-03 17:33:36,348 [WARNING] 🏗️  [GPUS] NEW BUILDING RANGE CREATED (ticks=1) at 17:33:36
+2026-01-03 17:34:01,409 [WARNING] 🏗️  [DVLT] BUILDING (20/60 ticks, 33%): $1.0900 - $1.1000
+2026-01-03 17:34:04,415 [WARNING] 🏗️  [GPUS] BUILDING (10/60 ticks, 17%): $0.2914 - $0.2915
+2026-01-03 17:34:12,426 [INFO] 📈 Tick #250: BNAI @ $4.03
+2026-01-03 17:34:27,449 [WARNING] 🏗️  [DVLT] BUILDING (30/60 ticks, 50%): $1.0900 - $1.1000
+2026-01-03 17:34:42,469 [WARNING] 🏗️  [GPUS] BUILDING (20/60 ticks, 33%): $0.2907 - $0.2915
+2026-01-03 17:34:49,478 [WARNING] 🏗️  [BNAI] NEW BUILDING RANGE CREATED (ticks=1) at 17:34:49
+2026-01-03 17:34:53,483 [WARNING] 🏗️  [DVLT] BUILDING (40/60 ticks, 67%): $1.0900 - $1.1000
+2026-01-03 17:35:01,499 [INFO] 📊 Processed 300 ticks, 0 trades
+2026-01-03 17:35:02,499 [INFO] 📈 Tick #300: DVLT @ $1.09
+2026-01-03 17:35:20,528 [WARNING] 🏗️  [GPUS] BUILDING (30/60 ticks, 50%): $0.2895 - $0.2915
+2026-01-03 17:35:21,529 [WARNING] 🏗️  [BNAI] BUILDING (10/60 ticks, 17%): $4.0200 - $4.0500
+2026-01-03 17:35:28,541 [WARNING] 🏗️  [DVLT] BUILDING (50/60 ticks, 83%): $1.0900 - $1.1000
+2026-01-03 17:35:37,562 [WARNING] 🏗️  [UAVS] NEW BUILDING RANGE CREATED (ticks=1) at 17:35:37
+2026-01-03 17:35:51,595 [WARNING] 🏗️  [BNAI] BUILDING (20/60 ticks, 33%): $4.0200 - $4.0548
+2026-01-03 17:35:52,598 [INFO] 📈 Tick #350: GPUS @ $0.29
+2026-01-03 17:35:55,609 [WARNING] ✅ [DVLT] Phase 2 LOCKED after 60 ticks at 17:35:55: $1.0900 - $1.1000 (valid until 17:40:55)
+2026-01-03 17:35:58,615 [INFO] 🎯 ENTRY SIGNAL DVLT: Price $1.0905 near prev low $1.0900 | 📊 Pre-touch confidence: 37% (momentum=0.0, support=2.0, recency=1.00) | ⏳ Waiting 5 ticks for confirmation...
+2026-01-03 17:36:02,625 [WARNING] 🏗️  [GPUS] BUILDING (40/60 ticks, 67%): $0.2885 - $0.2915
+2026-01-03 17:36:30,696 [WARNING] ✅ ENTRY CONFIRMED DVLT: Final confidence 23% >= threshold 20% | Entry price: $1.0900
+2026-01-03 17:36:30,917 [INFO] [DVLT] Position opened - range locked until close | Range: $1.0900-$1.1000 (locked at 17:35:55, was expiring at 17:40:55)
+2026-01-03 17:36:30,917 [INFO] 🔓 OPEN LONG DVLT @ $1.09 | size 75 shares | Daily DOWN (-0.01%) bias=1.5x | fixed sizing (config fallback with notional cap) | 📍 Entry time: 17:36:30 (for TIME_DECAY tracking)
+2026-01-03 17:36:30,918 [INFO] [12:36:30] DVLT   | OPEN   | RANGE_SUPPORT | PnL: +0.00%
+2026-01-03 17:36:30,940 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 17:36:30,940 [INFO] 📤 Broadcasted event (retry): OPEN
+2026-01-03 17:36:32,701 [WARNING] 🏗️  [BNAI] BUILDING (30/60 ticks, 50%): $4.0101 - $4.0548
+2026-01-03 17:36:36,712 [WARNING] 🏗️  [GPUS] BUILDING (50/60 ticks, 83%): $0.2851 - $0.2915
+2026-01-03 17:36:41,727 [INFO] 📊 Processed 400 ticks, 1 trades
+2026-01-03 17:36:42,729 [INFO] 📈 Tick #400: UAVS @ $1.21
+2026-01-03 17:36:46,739 [WARNING] 🏗️  [UAVS] BUILDING (10/60 ticks, 17%): $1.2100 - $1.2199
+2026-01-03 17:37:06,789 [INFO] 📊 EXIT DVLT LONG: RANGE TOP (dip) | Price $1.10 in top 5.3% (range: $1.07-$1.10) | PnL: +0.77%
+2026-01-03 17:37:06,790 [INFO] 🔍 EXIT SIGNAL DVLT: Reason=RANGE_HIGH, calling _close_position()
+2026-01-03 17:37:06,790 [INFO] 🔍 _close_position CALLED for DVLT @ $1.0984 (reason: RANGE_HIGH)
+2026-01-03 17:37:06,790 [INFO] 🔍 _close_position EXECUTING: Closing LONG position
+2026-01-03 17:37:06,790 [INFO] ✅ CLOSE LONG @ $1.10 (RANGE_HIGH) | PnL: $0.63 (0.77%)
+2026-01-03 17:37:06,790 [INFO] [DVLT] Position closed @ $1.10. Range RESET to Phase 1 (BUILD) for next opportunity
+2026-01-03 17:37:06,790 [INFO] 🔍 EXIT COMPLETE DVLT: event['action']=CLOSE - Position removed from tracking
+2026-01-03 17:37:06,791 [INFO] [12:37:06] DVLT   | CLOSE  | Exit: RANGE_HIGH | Entry: $1.09 | Exit: $1.10 | PnL: +0.63%
+2026-01-03 17:37:06,791 [INFO] 📤 Broadcasted event: CLOSE
+2026-01-03 17:37:17,814 [WARNING] ✅ [GPUS] Phase 2 LOCKED after 60 ticks at 17:37:17: $0.2851 - $0.2915 (valid until 17:42:17)
+2026-01-03 17:37:25,836 [WARNING] 🏗️  [BNAI] BUILDING (40/60 ticks, 67%): $4.0101 - $4.0548
+2026-01-03 17:37:26,839 [WARNING] 🏗️  [UAVS] BUILDING (20/60 ticks, 33%): $1.2100 - $1.2199
+2026-01-03 17:37:32,855 [INFO] 📈 Tick #450: DVLT @ $1.09
+2026-01-03 17:37:32,856 [WARNING] 🏗️  [DVLT] BUILDING (10/60 ticks, 17%): $1.0904 - $1.0996
+2026-01-03 17:37:54,913 [INFO] 🎯 ENTRY SIGNAL GPUS: Price $0.2856 near prev low $0.2851 | 📊 Pre-touch confidence: 37% (momentum=0.0, support=2.0, recency=1.00) | ⏳ Waiting 4 ticks for confirmation...
+2026-01-03 17:37:57,926 [WARNING] 🏗️  [DVLT] BUILDING (20/60 ticks, 33%): $1.0900 - $1.0996
+2026-01-03 17:38:12,963 [WARNING] ✅ ENTRY CONFIRMED GPUS: Final confidence 78% >= threshold 20% | Entry price: $0.2857
+2026-01-03 17:38:13,194 [INFO] [GPUS] Position opened - range locked until close | Range: $0.2851-$0.2915 (locked at 17:37:17, was expiring at 17:42:17)
+2026-01-03 17:38:13,194 [INFO] 🔓 OPEN LONG GPUS @ $0.29 | size 75 shares | Daily UP (+0.01%) bias=1.5x | fixed sizing (config fallback with notional cap) | 📍 Entry time: 17:38:13 (for TIME_DECAY tracking)
+2026-01-03 17:38:13,195 [INFO] [12:38:13] GPUS   | OPEN   | RANGE_SUPPORT | PnL: +0.63%
+2026-01-03 17:38:13,206 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 17:38:13,207 [INFO] 📤 Broadcasted event (retry): OPEN
+2026-01-03 17:38:19,982 [WARNING] 🏗️  [DVLT] BUILDING (30/60 ticks, 50%): $1.0900 - $1.1000
+2026-01-03 17:38:21,987 [INFO] 📊 Processed 500 ticks, 3 trades
+2026-01-03 17:38:22,989 [INFO] 📈 Tick #500: UAVS @ $1.22
+2026-01-03 17:38:38,034 [WARNING] 🏗️  [UAVS] BUILDING (30/60 ticks, 50%): $1.2100 - $1.2200
+2026-01-03 17:38:44,043 [WARNING] 🏗️  [DVLT] BUILDING (40/60 ticks, 67%): $1.0900 - $1.1000
+2026-01-03 17:38:46,045 [WARNING] 🏗️  [BNAI] BUILDING (50/60 ticks, 83%): $3.9800 - $4.0548
+2026-01-03 17:39:13,129 [INFO] 📈 Tick #550: UAVS @ $1.19
+2026-01-03 17:39:13,129 [WARNING] 🏗️  [UAVS] BUILDING (40/60 ticks, 67%): $1.1900 - $1.2200
+2026-01-03 17:39:19,140 [WARNING] 🏗️  [DVLT] BUILDING (50/60 ticks, 83%): $1.0900 - $1.1099
+2026-01-03 17:39:27,156 [WARNING] ✅ [BNAI] Phase 2 LOCKED after 60 ticks at 17:39:27: $3.9750 - $4.0548 (valid until 17:44:27)
+2026-01-03 17:39:30,162 [INFO] 🎯 ENTRY SIGNAL BNAI: Price $3.9800 near prev low $3.9750 | 📊 Pre-touch confidence: 37% (momentum=0.0, support=2.0, recency=1.00) | ⏳ Waiting 4 ticks for confirmation...
+2026-01-03 17:39:42,194 [WARNING] ✅ ENTRY CONFIRMED BNAI: Final confidence 78% >= threshold 20% | Entry price: $3.9814
+2026-01-03 17:39:42,383 [INFO] [BNAI] Position opened - range locked until close | Range: $3.9750-$4.0548 (locked at 17:39:27, was expiring at 17:44:27)
+2026-01-03 17:39:42,384 [INFO] 🔓 OPEN LONG BNAI @ $3.98 | size 75 shares | Daily DOWN (-0.00%) bias=1.5x | fixed sizing (config fallback with notional cap) | 📍 Entry time: 17:39:42 (for TIME_DECAY tracking)
+2026-01-03 17:39:42,384 [INFO] [12:39:42] BNAI   | OPEN   | RANGE_SUPPORT | PnL: +0.63%
+2026-01-03 17:39:42,392 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 17:39:42,392 [INFO] 📤 Broadcasted event (retry): OPEN
+2026-01-03 17:39:51,219 [WARNING] ✅ [DVLT] Phase 2 LOCKED after 60 ticks at 17:39:51: $1.0900 - $1.1100 (valid until 17:44:51)
+2026-01-03 17:40:00,240 [WARNING] 🏗️  [UAVS] BUILDING (50/60 ticks, 83%): $1.1900 - $1.2200
+2026-01-03 17:40:02,243 [INFO] 📊 Processed 600 ticks, 4 trades
+2026-01-03 17:40:03,246 [INFO] 📈 Tick #600: DVLT @ $1.11
+2026-01-03 17:40:39,399 [WARNING] ✅ [UAVS] Phase 2 LOCKED after 60 ticks at 17:40:39: $1.1900 - $1.2200 (valid until 17:45:39)
+2026-01-03 17:40:53,425 [INFO] 📈 Tick #650: BNAI @ $3.98
+2026-01-03 17:41:42,560 [INFO] 📊 Processed 700 ticks, 4 trades
+2026-01-03 17:41:43,563 [INFO] 📈 Tick #700: DVLT @ $1.10
+2026-01-03 17:42:33,742 [INFO] 📈 Tick #750: BNAI @ $3.98
+2026-01-03 17:42:42,764 [INFO] 🎯 ENTRY SIGNAL UAVS: Price $1.1900 near prev low $1.1900 | 📊 Pre-touch confidence: 37% (momentum=0.0, support=2.0, recency=1.00) | ⏳ Waiting 5 ticks for confirmation...
+2026-01-03 17:43:05,809 [WARNING] ✅ ENTRY CONFIRMED UAVS: Final confidence 51% >= threshold 20% | Entry price: $1.1901
+2026-01-03 17:43:05,966 [INFO] [UAVS] Position opened - range locked until close | Range: $1.1900-$1.2200 (locked at 17:40:39, was expiring at 17:45:39)
+2026-01-03 17:43:05,967 [INFO] 🔓 OPEN LONG UAVS @ $1.19 | size 75 shares | Daily UP (+0.01%) bias=1.5x | fixed sizing (config fallback with notional cap) | 📍 Entry time: 17:43:05 (for TIME_DECAY tracking)
+2026-01-03 17:43:05,967 [INFO] [12:43:05] UAVS   | OPEN   | RANGE_SUPPORT | PnL: +0.63%
+2026-01-03 17:43:06,036 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 17:43:06,036 [INFO] 📤 Broadcasted event (retry): OPEN
+2026-01-03 17:43:22,856 [INFO] 📊 Processed 800 ticks, 5 trades
+2026-01-03 17:43:23,860 [INFO] 📈 Tick #800: DVLT @ $1.11
+2026-01-03 17:44:14,016 [INFO] 📈 Tick #850: BNAI @ $3.98
+2026-01-03 17:44:52,128 [INFO] [DVLT] Range validity expired at 17:44:52. Resetting to Phase 1 (BUILD)
+2026-01-03 17:45:03,183 [INFO] 📊 Processed 900 ticks, 5 trades
+2026-01-03 17:45:04,186 [INFO] 📈 Tick #900: GPUS @ $0.29
+2026-01-03 17:45:09,203 [WARNING] 🏗️  [DVLT] BUILDING (10/60 ticks, 17%): $1.1100 - $1.1200
+2026-01-03 17:45:34,264 [WARNING] 🏗️  [DVLT] BUILDING (20/60 ticks, 33%): $1.1100 - $1.1200
+2026-01-03 17:45:54,307 [INFO] 📈 Tick #950: GPUS @ $0.29
+2026-01-03 17:45:56,313 [WARNING] 🏗️  [DVLT] BUILDING (30/60 ticks, 50%): $1.1100 - $1.1200
+2026-01-03 17:46:21,362 [WARNING] 🏗️  [DVLT] BUILDING (40/60 ticks, 67%): $1.1100 - $1.1200
+2026-01-03 17:46:43,389 [INFO] 📊 Processed 1000 ticks, 5 trades
+2026-01-03 17:46:44,391 [INFO] 📈 Tick #1000: UAVS @ $1.20
+2026-01-03 17:46:45,392 [WARNING] 🏗️  [DVLT] BUILDING (50/60 ticks, 83%): $1.1100 - $1.1200
+2026-01-03 17:47:07,440 [WARNING] ✅ [DVLT] Phase 2 LOCKED after 60 ticks at 17:47:07: $1.1100 - $1.1200 (valid until 17:52:07)
+2026-01-03 17:47:17,464 [INFO] 🎯 ENTRY SIGNAL DVLT: Price $1.1101 near prev low $1.1100 | 📊 Pre-touch confidence: 37% (momentum=0.0, support=2.0, recency=1.00) | ⏳ Waiting 4 ticks for confirmation...
+2026-01-03 17:47:34,495 [INFO] 📈 Tick #1050: GPUS @ $0.28
+2026-01-03 17:47:52,537 [WARNING] ✅ ENTRY CONFIRMED DVLT: Final confidence 78% >= threshold 20% | Entry price: $1.1105
+2026-01-03 17:47:52,671 [INFO] [DVLT] Position opened - range locked until close | Range: $1.1100-$1.1200 (locked at 17:47:07, was expiring at 17:52:07)
+2026-01-03 17:47:52,671 [INFO] 🔓 OPEN LONG DVLT @ $1.11 | size 75 shares | Daily DOWN (-0.00%) bias=1.5x | fixed sizing (config fallback with notional cap) | 📍 Entry time: 17:47:52 (for TIME_DECAY tracking)
+2026-01-03 17:47:52,671 [INFO] [12:47:52] DVLT   | OPEN   | RANGE_SUPPORT | PnL: +0.63%
+2026-01-03 17:47:52,677 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 17:47:52,678 [INFO] 📤 Broadcasted event (retry): OPEN
+2026-01-03 17:48:23,618 [INFO] 📊 Processed 1100 ticks, 6 trades
+2026-01-03 17:48:24,619 [INFO] 📈 Tick #1100: BNAI @ $3.92
+2026-01-03 17:49:14,773 [INFO] 📈 Tick #1150: DVLT @ $1.11
+2026-01-03 17:50:03,919 [INFO] 📊 Processed 1200 ticks, 6 trades
+2026-01-03 17:50:04,920 [INFO] 📈 Tick #1200: UAVS @ $1.19
+2026-01-03 17:50:10,935 [INFO] 📊 EXIT DVLT LONG: RANGE TOP (dip) | Price $1.12 in top 7.7% (range: $1.09-$1.12) | PnL: +0.65%
+2026-01-03 17:50:10,935 [INFO] 🔍 EXIT SIGNAL DVLT: Reason=RANGE_HIGH, calling _close_position()
+2026-01-03 17:50:10,936 [INFO] 🔍 _close_position CALLED for DVLT @ $1.1177 (reason: RANGE_HIGH)
+2026-01-03 17:50:10,936 [INFO] 🔍 _close_position EXECUTING: Closing LONG position
+2026-01-03 17:50:10,936 [INFO] ✅ CLOSE LONG @ $1.12 (RANGE_HIGH) | PnL: $0.54 (0.65%)
+2026-01-03 17:50:10,936 [INFO] [DVLT] Position closed @ $1.12. Range RESET to Phase 1 (BUILD) for next opportunity
+2026-01-03 17:50:10,936 [INFO] 🔍 EXIT COMPLETE DVLT: event['action']=CLOSE - Position removed from tracking
+2026-01-03 17:50:10,937 [INFO] [12:50:10] DVLT   | CLOSE  | Exit: RANGE_HIGH | Entry: $1.11 | Exit: $1.12 | PnL: +1.17%
+2026-01-03 17:50:10,945 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 17:50:10,945 [INFO] 📤 Broadcasted event (retry): CLOSE
+2026-01-03 17:50:39,996 [WARNING] 🏗️  [DVLT] BUILDING (10/60 ticks, 17%): $1.1100 - $1.1195
+2026-01-03 17:50:55,026 [INFO] 📈 Tick #1250: GPUS @ $0.29
+2026-01-03 17:51:13,065 [WARNING] 🏗️  [DVLT] BUILDING (20/60 ticks, 33%): $1.1100 - $1.1195
+2026-01-03 17:51:36,128 [WARNING] 🏗️  [DVLT] BUILDING (30/60 ticks, 50%): $1.1100 - $1.1199
+2026-01-03 17:51:44,149 [INFO] 📊 Processed 1300 ticks, 7 trades
+2026-01-03 17:51:45,151 [INFO] 📈 Tick #1300: DVLT @ $1.12
+2026-01-03 17:52:07,232 [WARNING] 🏗️  [DVLT] BUILDING (40/60 ticks, 67%): $1.1100 - $1.1199
+2026-01-03 17:52:35,275 [INFO] 📈 Tick #1350: DVLT @ $1.11
+2026-01-03 17:52:35,276 [WARNING] 🏗️  [DVLT] BUILDING (50/60 ticks, 83%): $1.1100 - $1.1199
+2026-01-03 17:53:09,333 [WARNING] ✅ [DVLT] Phase 2 LOCKED after 60 ticks at 17:53:09: $1.1100 - $1.1199 (valid until 17:58:09)
+2026-01-03 17:53:12,337 [INFO] 🎯 ENTRY SIGNAL DVLT: Price $1.1100 near prev low $1.1100 | 📊 Pre-touch confidence: 37% (momentum=0.0, support=2.0, recency=1.00) | ⏳ Waiting 4 ticks for confirmation...
+2026-01-03 17:53:24,405 [INFO] 📊 Processed 1400 ticks, 7 trades
+2026-01-03 17:53:25,407 [INFO] 📈 Tick #1400: BNAI @ $3.86
+2026-01-03 17:54:00,639 [WARNING] ✅ ENTRY CONFIRMED DVLT: Final confidence 78% >= threshold 20% | Entry price: $1.1100
+2026-01-03 17:54:00,856 [INFO] [DVLT] Position opened - range locked until close | Range: $1.1100-$1.1199 (locked at 17:53:09, was expiring at 17:58:09)
+2026-01-03 17:54:00,856 [INFO] 🔓 OPEN LONG DVLT @ $1.11 | size 75 shares | Daily UP (+0.01%) bias=1.5x | fixed sizing (config fallback with notional cap) | 📍 Entry time: 17:54:00 (for TIME_DECAY tracking)
+2026-01-03 17:54:00,856 [INFO] [12:54:00] DVLT   | OPEN   | RANGE_SUPPORT | PnL: +1.17%
+2026-01-03 17:54:00,861 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 17:54:00,861 [INFO] 📤 Broadcasted event (retry): OPEN
+2026-01-03 17:54:15,664 [INFO] 📈 Tick #1450: BNAI @ $3.88
+2026-01-03 17:55:04,918 [INFO] 📊 Processed 1500 ticks, 8 trades
+2026-01-03 17:55:05,920 [INFO] 📈 Tick #1500: UAVS @ $1.20
+2026-01-03 17:55:56,023 [INFO] 📈 Tick #1550: GPUS @ $0.29
+2026-01-03 17:56:45,132 [INFO] 📊 Processed 1600 ticks, 8 trades
+2026-01-03 17:56:46,133 [INFO] 📈 Tick #1600: BNAI @ $3.91
+2026-01-03 17:56:49,139 [INFO] 📊 EXIT DVLT LONG: RANGE TOP (dip) | Price $1.12 in top 3.1% (range: $1.10-$1.12) | PnL: +0.86%
+2026-01-03 17:56:49,139 [INFO] 🔍 EXIT SIGNAL DVLT: Reason=RANGE_HIGH, calling _close_position()
+2026-01-03 17:56:49,139 [INFO] 🔍 _close_position CALLED for DVLT @ $1.1195 (reason: RANGE_HIGH)
+2026-01-03 17:56:49,139 [INFO] 🔍 _close_position EXECUTING: Closing LONG position
+2026-01-03 17:56:49,139 [INFO] ✅ CLOSE LONG @ $1.12 (RANGE_HIGH) | PnL: $0.71 (0.86%)
+2026-01-03 17:56:49,139 [INFO] [DVLT] Position closed @ $1.12. Range RESET to Phase 1 (BUILD) for next opportunity
+2026-01-03 17:56:49,139 [INFO] 🔍 EXIT COMPLETE DVLT: event['action']=CLOSE - Position removed from tracking
+2026-01-03 17:56:49,140 [INFO] [12:56:49] DVLT   | CLOSE  | Exit: RANGE_HIGH | Entry: $1.11 | Exit: $1.12 | PnL: +1.88%
+2026-01-03 17:56:49,148 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 17:56:49,148 [INFO] 📤 Broadcasted event (retry): CLOSE
+2026-01-03 17:57:13,187 [WARNING] 🏗️  [DVLT] BUILDING (10/60 ticks, 17%): $1.1102 - $1.1200
+2026-01-03 17:57:23,210 [INFO] 🎯 EXIT GPUS LONG: TIME_DECAY_15MIN | ⏱️  Elapsed: 19.2min (threshold: 15min) | 💰 P/L: +0.72% (threshold: +0.5%) | 📈 Price: $0.29 | Entry: $0.29
+2026-01-03 17:57:23,210 [INFO] 🔍 EXIT SIGNAL GPUS: Reason=TIME_DECAY, calling _close_position()
+2026-01-03 17:57:23,210 [INFO] 🔍 _close_position CALLED for GPUS @ $0.2878 (reason: TIME_DECAY)
+2026-01-03 17:57:23,211 [INFO] 🔍 _close_position EXECUTING: Closing LONG position
+2026-01-03 17:57:23,211 [INFO] ✅ CLOSE LONG @ $0.29 (TIME_DECAY) | PnL: $0.15 (0.72%)
+2026-01-03 17:57:23,211 [INFO] [GPUS] Position closed @ $0.29. Range RESET to Phase 1 (BUILD) for next opportunity
+2026-01-03 17:57:23,211 [INFO] 🔍 EXIT COMPLETE GPUS: event['action']=CLOSE - Position removed from tracking
+2026-01-03 17:57:23,211 [INFO] [12:57:23] GPUS   | CLOSE  | Exit: TIME_DECAY | Entry: $0.29 | Exit: $0.29 | PnL: +2.04%
+2026-01-03 17:57:23,212 [INFO] 📤 Broadcasted event: CLOSE
+2026-01-03 17:57:35,238 [WARNING] 🏗️  [DVLT] BUILDING (20/60 ticks, 33%): $1.1100 - $1.1200
+2026-01-03 17:57:36,240 [INFO] 📈 Tick #1650: BNAI @ $3.90
+2026-01-03 17:57:55,275 [WARNING] 🏗️  [GPUS] BUILDING (10/60 ticks, 17%): $0.2877 - $0.2890
+2026-01-03 17:58:01,292 [WARNING] 🏗️  [DVLT] BUILDING (30/60 ticks, 50%): $1.1100 - $1.1200
+2026-01-03 17:58:18,320 [INFO] 🎯 EXIT UAVS LONG: TIME_DECAY_15MIN | ⏱️  Elapsed: 15.2min (threshold: 15min) | 💰 P/L: +0.79% (threshold: +0.5%) | 📈 Price: $1.20 | Entry: $1.19
+2026-01-03 17:58:18,320 [INFO] 🔍 EXIT SIGNAL UAVS: Reason=TIME_DECAY, calling _close_position()
+2026-01-03 17:58:18,320 [INFO] 🔍 _close_position CALLED for UAVS @ $1.1995 (reason: TIME_DECAY)
+2026-01-03 17:58:18,320 [INFO] 🔍 _close_position EXECUTING: Closing LONG position
+2026-01-03 17:58:18,321 [INFO] ✅ CLOSE LONG @ $1.20 (TIME_DECAY) | PnL: $0.71 (0.79%)
+2026-01-03 17:58:18,321 [INFO] [UAVS] Position closed @ $1.20. Range RESET to Phase 1 (BUILD) for next opportunity
+2026-01-03 17:58:18,321 [INFO] 🔍 EXIT COMPLETE UAVS: event['action']=CLOSE - Position removed from tracking
+2026-01-03 17:58:18,321 [INFO] [12:58:18] UAVS   | CLOSE  | Exit: TIME_DECAY | Entry: $1.19 | Exit: $1.20 | PnL: +2.74%
+2026-01-03 17:58:18,325 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 17:58:18,325 [INFO] 📤 Broadcasted event (retry): CLOSE
+2026-01-03 17:58:25,339 [INFO] 📊 Processed 1700 ticks, 11 trades
+2026-01-03 17:58:26,341 [INFO] 📈 Tick #1700: GPUS @ $0.29
+2026-01-03 17:58:27,345 [WARNING] 🏗️  [DVLT] BUILDING (40/60 ticks, 67%): $1.1100 - $1.1200
+2026-01-03 17:58:28,348 [WARNING] 🏗️  [GPUS] BUILDING (20/60 ticks, 33%): $0.2877 - $0.2890
+2026-01-03 17:58:56,420 [WARNING] 🏗️  [DVLT] BUILDING (50/60 ticks, 83%): $1.1100 - $1.1200
+2026-01-03 17:59:00,475 [WARNING] 🏗️  [GPUS] BUILDING (30/60 ticks, 50%): $0.2877 - $0.2890
+2026-01-03 17:59:12,506 [WARNING] 🏗️  [UAVS] BUILDING (10/60 ticks, 17%): $1.1802 - $1.1995
+2026-01-03 17:59:16,512 [INFO] 📈 Tick #1750: GPUS @ $0.28
+2026-01-03 17:59:25,626 [WARNING] ✅ [DVLT] Phase 2 LOCKED after 60 ticks at 17:59:25: $1.1100 - $1.1200 (valid until 18:04:25)
+2026-01-03 17:59:25,626 [INFO] 🎯 ENTRY SIGNAL DVLT: Price $1.1101 near prev low $1.1195 | 📊 Pre-touch confidence: 37% (momentum=0.0, support=2.0, recency=1.00) | ⏳ Waiting 5 ticks for confirmation...
+2026-01-03 17:59:41,677 [WARNING] 🏗️  [GPUS] BUILDING (40/60 ticks, 67%): $0.2850 - $0.2890
+2026-01-03 17:59:45,684 [WARNING] ✅ ENTRY CONFIRMED DVLT: Final confidence 78% >= threshold 20% | Entry price: $1.1103
+2026-01-03 17:59:45,994 [INFO] [DVLT] Position opened - range locked until close | Range: $1.1100-$1.1200 (locked at 17:59:25, was expiring at 18:04:25)
+2026-01-03 17:59:45,994 [INFO] 🔓 OPEN LONG DVLT @ $1.11 | size 75 shares | Daily DOWN (-0.01%) bias=1.5x | fixed sizing (config fallback with notional cap) | 📍 Entry time: 17:59:45 (for TIME_DECAY tracking)
+2026-01-03 17:59:45,994 [INFO] [12:59:45] DVLT   | OPEN   | RANGE_SUPPORT | PnL: +2.74%
+2026-01-03 17:59:45,998 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 17:59:45,998 [INFO] 📤 Broadcasted event (retry): OPEN
+2026-01-03 18:00:00,720 [WARNING] 🏗️  [UAVS] BUILDING (20/60 ticks, 33%): $1.1800 - $1.1995
+2026-01-03 18:00:05,727 [INFO] 📊 Processed 1800 ticks, 12 trades
+2026-01-03 18:00:06,728 [INFO] 📈 Tick #1800: UAVS @ $1.19
+2026-01-03 18:00:23,800 [WARNING] 🏗️  [GPUS] BUILDING (50/60 ticks, 83%): $0.2850 - $0.2890
+2026-01-03 18:00:56,900 [INFO] 📈 Tick #1850: DVLT @ $1.09
+2026-01-03 18:01:02,912 [WARNING] 🏗️  [UAVS] BUILDING (30/60 ticks, 50%): $1.1800 - $1.1995
+2026-01-03 18:01:12,936 [WARNING] ✅ [GPUS] Phase 2 LOCKED after 60 ticks at 18:01:12: $0.2850 - $0.2890 (valid until 18:06:12)
+2026-01-03 18:01:46,020 [INFO] 📊 Processed 1900 ticks, 12 trades
+2026-01-03 18:01:47,022 [INFO] 📈 Tick #1900: UAVS @ $1.19
+2026-01-03 18:01:59,055 [WARNING] 🏗️  [UAVS] BUILDING (40/60 ticks, 67%): $1.1800 - $1.1995
+2026-01-03 18:02:37,155 [INFO] 📈 Tick #1950: DVLT @ $1.09
+2026-01-03 18:02:43,166 [INFO] 🎯 ENTRY SIGNAL GPUS: Price $0.2861 near prev low $0.2850 | 📊 Pre-touch confidence: 37% (momentum=0.0, support=2.0, recency=1.00) | ⏳ Waiting 3 ticks for confirmation...
+2026-01-03 18:02:59,288 [WARNING] ✅ ENTRY CONFIRMED GPUS: Final confidence 23% >= threshold 20% | Entry price: $0.2854
+2026-01-03 18:02:59,474 [INFO] [GPUS] Position opened - range locked until close | Range: $0.2850-$0.2890 (locked at 18:01:12, was expiring at 18:06:12)
+2026-01-03 18:02:59,475 [INFO] 🔓 OPEN LONG GPUS @ $0.29 | size 75 shares | Daily UP (+0.01%) bias=1.5x | fixed sizing (config fallback with notional cap) | 📍 Entry time: 18:02:59 (for TIME_DECAY tracking)
+2026-01-03 18:02:59,475 [INFO] [13:02:59] GPUS   | OPEN   | RANGE_SUPPORT | PnL: +2.74%
+2026-01-03 18:02:59,483 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 18:02:59,484 [INFO] 📤 Broadcasted event (retry): OPEN
+2026-01-03 18:03:02,353 [WARNING] 🏗️  [UAVS] BUILDING (50/60 ticks, 83%): $1.1800 - $1.1995
+2026-01-03 18:03:26,434 [INFO] 📊 Processed 2000 ticks, 13 trades
+2026-01-03 18:03:27,436 [INFO] 📈 Tick #2000: GPUS @ $0.29
+2026-01-03 18:03:48,487 [WARNING] ✅ [UAVS] Phase 2 LOCKED after 60 ticks at 18:03:48: $1.1800 - $1.1995 (valid until 18:08:48)
+2026-01-03 18:03:48,487 [INFO] 🎯 ENTRY SIGNAL UAVS: Price $1.1850 near prev low $1.1995 | 📊 Pre-touch confidence: 52% (momentum=2.0, support=2.0, recency=1.00) | ⏳ Waiting 4 ticks for confirmation...
+2026-01-03 18:04:17,543 [INFO] 📈 Tick #2050: BNAI @ $3.93
+2026-01-03 18:04:33,572 [WARNING] ✅ ENTRY CONFIRMED UAVS: Final confidence 38% >= threshold 20% | Entry price: $1.1809
+2026-01-03 18:04:33,757 [INFO] [UAVS] Position opened - range locked until close | Range: $1.1800-$1.1995 (locked at 18:03:48, was expiring at 18:08:48)
+2026-01-03 18:04:33,757 [INFO] 🔓 OPEN LONG UAVS @ $1.18 | size 75 shares | Daily UP (+0.00%) bias=1.5x | fixed sizing (config fallback with notional cap) | 📍 Entry time: 18:04:33 (for TIME_DECAY tracking)
+2026-01-03 18:04:33,757 [INFO] [13:04:33] UAVS   | OPEN   | RANGE_SUPPORT | PnL: +2.74%
+2026-01-03 18:04:33,761 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 18:04:33,761 [INFO] 📤 Broadcasted event (retry): OPEN
+2026-01-03 18:05:06,629 [INFO] 📊 Processed 2100 ticks, 14 trades
+2026-01-03 18:05:07,631 [INFO] 📈 Tick #2100: UAVS @ $1.18
+2026-01-03 18:05:57,747 [INFO] 📈 Tick #2150: DVLT @ $1.08
+2026-01-03 18:06:46,889 [INFO] 📊 Processed 2200 ticks, 14 trades
+2026-01-03 18:06:47,891 [INFO] 📈 Tick #2200: DVLT @ $1.09
+2026-01-03 18:07:38,002 [INFO] 📈 Tick #2250: UAVS @ $1.19
+2026-01-03 18:08:27,116 [INFO] 📊 Processed 2300 ticks, 14 trades
+2026-01-03 18:08:28,119 [INFO] 📈 Tick #2300: GPUS @ $0.28
+2026-01-03 18:09:18,281 [INFO] 📈 Tick #2350: BNAI @ $3.93
+2026-01-03 18:10:07,374 [INFO] 📊 Processed 2400 ticks, 14 trades
+2026-01-03 18:10:08,377 [INFO] 📈 Tick #2400: DVLT @ $1.08
+2026-01-03 18:10:58,504 [INFO] 📈 Tick #2450: GPUS @ $0.29
+2026-01-03 18:11:47,623 [INFO] 📊 Processed 2500 ticks, 14 trades
+2026-01-03 18:11:48,626 [INFO] 📈 Tick #2500: UAVS @ $1.20
+2026-01-03 18:11:48,627 [INFO] 📊 EXIT UAVS LONG: RANGE TOP (dip) | Price $1.20 in top 8.3% (range: $1.17-$1.20) | PnL: +1.41%
+2026-01-03 18:11:48,627 [INFO] 🔍 EXIT SIGNAL UAVS: Reason=RANGE_HIGH, calling _close_position()
+2026-01-03 18:11:48,627 [INFO] 🔍 _close_position CALLED for UAVS @ $1.1975 (reason: RANGE_HIGH)
+2026-01-03 18:11:48,627 [INFO] 🔍 _close_position EXECUTING: Closing LONG position
+2026-01-03 18:11:48,628 [INFO] ✅ CLOSE LONG @ $1.20 (RANGE_HIGH) | PnL: $1.24 (1.41%)
+2026-01-03 18:11:48,629 [INFO] [UAVS] Position closed @ $1.20. Range RESET to Phase 1 (BUILD) for next opportunity
+2026-01-03 18:11:48,629 [INFO] 🔍 EXIT COMPLETE UAVS: event['action']=CLOSE - Position removed from tracking
+2026-01-03 18:11:48,630 [INFO] [13:11:48] UAVS   | CLOSE  | Exit: RANGE_HIGH | Entry: $1.18 | Exit: $1.20 | PnL: +3.99%
+2026-01-03 18:11:48,648 [INFO] 🔗 Broadcast connection re-established (was closed)
+2026-01-03 18:11:48,649 [INFO] 📤 Broadcasted event (retry): CLOSE
+2026-01-03 18:12:38,728 [INFO] 📈 Tick #2550: BNAI @ $3.93
+2026-01-03 18:12:39,730 [WARNING] 🏗️  [UAVS] BUILDING (10/60 ticks, 17%): $1.1900 - $1.2000
+2026-01-03 18:13:28,212 [INFO] 📊 Processed 2600 ticks, 15 trades
+2026-01-03 18:13:29,214 [INFO] 📈 Tick #2600: UAVS @ $1.19
+2026-01-03 18:13:36,237 [WARNING] 🏗️  [UAVS] BUILDING (20/60 ticks, 33%): $1.1900 - $1.2000
+2026-01-03 18:14:18,466 [WARNING] 🏗️  [UAVS] BUILDING (30/60 ticks, 50%): $1.1900 - $1.2000
+2026-01-03 18:14:19,466 [INFO] 📈 Tick #2650: DVLT @ $1.09
+2026-01-03 18:14:55,595 [WARNING] 🏗️  [UAVS] BUILDING (40/60 ticks, 67%): $1.1900 - $1.2150
+2026-01-03 18:15:08,677 [INFO] 📊 Processed 2700 ticks, 15 trades
+2026-01-03 18:15:09,680 [INFO] 📈 Tick #2700: DVLT @ $1.08
+2026-01-03 18:15:31,730 [WARNING] 🏗️  [UAVS] BUILDING (50/60 ticks, 83%): $1.1900 - $1.2199
+2026-01-03 18:15:59,790 [INFO] 📈 Tick #2750: DVLT @ $1.09
+2026-01-03 18:16:11,821 [WARNING] ✅ [UAVS] Phase 2 LOCKED after 60 ticks at 18:16:11: $1.1900 - $1.2200 (valid until 18:21:11)
+2026-01-03 18:16:48,920 [INFO] 📊 Processed 2800 ticks, 15 trades
+2026-01-03 18:16:49,922 [INFO] 📈 Tick #2800: DVLT @ $1.09
+2026-01-03 18:17:40,101 [INFO] 📈 Tick #2850: UAVS @ $1.21
+2026-01-03 18:18:29,297 [INFO] 📊 Processed 2900 ticks, 15 trades
+2026-01-03 18:18:30,299 [INFO] 📈 Tick #2900: GPUS @ $0.29

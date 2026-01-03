@@ -6,7 +6,7 @@ import string
 import time
 import random
 from datetime import datetime
-from typing import Set
+from typing import Set, List, Dict
 
 import aiohttp
 import websockets
@@ -32,6 +32,14 @@ logger = logging.getLogger(__name__)
 
 # Store connected clients
 connected_clients: Set = set()
+
+# Global historical data cache
+HISTORICAL_DATA_CACHE: Dict[str, List[dict]] = {}  # {symbol: [bars]}
+
+# Pause/Resume state management
+IS_PAUSED = False
+PAUSED_INDICES: Dict[str, int] = {}  # {symbol: index} - saved checkpoint when paused
+PAUSE_LOCK = asyncio.Lock()  # For thread-safe pause state access
 
 
 def generate_request_id():
@@ -78,6 +86,7 @@ def _parse_float_env(key: str, default: float) -> float:
 POLYGON_API_KEY = os.getenv("POLYGON_API_KEY", "")
 POLYGON_BASE_URL = os.getenv("POLYGON_BASE_URL", "")
 POLYGON_SNAPSHOT_PATH = os.getenv("POLYGON_SNAPSHOT_PATH", "")
+POLYGON_WS_URL = os.getenv("POLYGON_WS_URL", "wss://delayed.massive.com/stocks")
 SYMBOL = os.getenv("SYMBOL", "AAPL")
 
 # Multi-symbol support
@@ -90,11 +99,56 @@ SYMBOL_LOCK = asyncio.Lock()
 
 FETCH_INTERVAL = _parse_float_env("FETCH_INTERVAL", 60.0)
 
-# FAKE_TICKS mode: generate synthetic data for testing
+# FAKE_TICKS mode: use historical data instead of generating synthetic prices
 FAKE_TICKS = os.getenv("FAKE_TICKS", "false").lower() == "true"
 
-# Price cache for fake ticks and real data
-PRICE_CACHE = {}  # {symbol: {"base_price": float, "last_price": float}}
+# Historical data file path - configurable via environment variable
+# When FAKE_TICKS=true, load data from the file specified in HISTORICAL_DATA_FILE env var
+_data_filename = os.getenv("HISTORICAL_DATA_FILE", "historical_data.json")
+HISTORICAL_DATA_FILE = Path(__file__).resolve().parent.parent / "data" / _data_filename
+
+
+def load_historical_data() -> Dict[str, List[dict]]:
+    """Load historical data from JSON file and organize by symbol."""
+    global HISTORICAL_DATA_CACHE
+    
+    if HISTORICAL_DATA_CACHE:
+        return HISTORICAL_DATA_CACHE
+    
+    try:
+        if not HISTORICAL_DATA_FILE.exists():
+            logger.error(f"Historical data file not found: {HISTORICAL_DATA_FILE}")
+            return {}
+        
+        with open(HISTORICAL_DATA_FILE, 'r') as f:
+            data = json.load(f)
+        
+        bars = data.get('bars', [])
+        logger.info(f"Loaded {len(bars)} bars from historical data")
+        
+        # Organize bars by symbol
+        symbol_bars = {}
+        for bar in bars:
+            symbol = bar.get('sym', '').upper()
+            if symbol:
+                if symbol not in symbol_bars:
+                    symbol_bars[symbol] = []
+                symbol_bars[symbol].append(bar)
+        
+        HISTORICAL_DATA_CACHE = symbol_bars
+        logger.info(f"Organized into {len(symbol_bars)} symbols: {list(symbol_bars.keys())}")
+        
+        return symbol_bars
+    
+    except Exception as e:
+        logger.error(f"Failed to load historical data: {e}", exc_info=True)
+        return {}
+
+
+async def get_active_symbols() -> List[str]:
+    """Safely copy the current active symbols list."""
+    async with SYMBOL_LOCK:
+        return list(SYMBOLS_ACTIVE)
 
 
 def build_snapshot_url(symbol: str = None) -> str:
@@ -113,99 +167,25 @@ SNAPSHOT_URL = build_snapshot_url()
 
 
 async def fetch_snapshot(session: aiohttp.ClientSession, symbol: str = None) -> dict:
-    """Fetch live price snapshot - either from Polygon API or generate fake ticks"""
-    target_symbol = symbol or SYMBOL
+    """Fetch price snapshot - uses historical data when FAKE_TICKS is enabled."""
+    target_symbol = (symbol or SYMBOL).upper()
     
     if FAKE_TICKS:
-        # FAKE_TICKS mode: generate synthetic price data with realistic variation
-        if target_symbol not in PRICE_CACHE:
-            # Initialize base price from a reasonable estimate (for testing)
-            # Default: random price between $10-$300 for unknown symbols
-            base_prices = {
-                "RARE": 22.80,
-                "FTAI": 197.68,
-                "FRMI": 8.09,
-                "UAA": 5.15,
-                "AAPL": 230.0,
-                "MSFT": 420.0,
-                "GOOGL": 140.0,
-                "TSLA": 250.0,
-            }
-            # For symbols not in base_prices, generate a realistic price
-            if target_symbol in base_prices:
-                base_price = base_prices[target_symbol]
-            else:
-                # Generate consistent fake price for unknown symbols using symbol hash
-                import hashlib
-                symbol_hash = int(hashlib.md5(target_symbol.encode()).hexdigest(), 16)
-                base_price = 20.0 + ((symbol_hash % 280) * 1.0)  # $20 - $300
-            
-            PRICE_CACHE[target_symbol] = {
-                "base_price": base_price,
-                "last_price": base_price
-            }
+        # FAKE_TICKS mode: use historical data instead of synthetic prices
+        if not HISTORICAL_DATA_CACHE:
+            load_historical_data()
         
-        cache = PRICE_CACHE[target_symbol]
+        if target_symbol not in HISTORICAL_DATA_CACHE:
+            logger.warning(f"Symbol {target_symbol} not found in historical data")
+            return {}
         
-        # Add realistic price variation (±0.5% per tick)
-        price_change_pct = random.uniform(-0.005, 0.005)
-        new_price = round(cache["last_price"] * (1 + price_change_pct), 2)
-        
-        # Clamp to reasonable bounds (±5% from base)
-        min_price = cache["base_price"] * 0.95
-        max_price = cache["base_price"] * 1.05
-        new_price = max(min_price, min(max_price, new_price))
-        
-        cache["last_price"] = new_price
-        
-        logger.debug(f"FAKE_TICKS: Generated {target_symbol}: ${new_price}")
-        
-        # Always return a valid snapshot dict for FAKE_TICKS
-        return {
-            "ticker": {
-                "ticker": target_symbol,
-                "day": {"c": new_price, "v": random.randint(1000000, 10000000)},
-                "min": {"c": new_price, "v": random.randint(500000, 5000000), "n": random.randint(1000, 10000)},
-                "updated": int(time.time() * 1e9)
-            }
-        }
+        # For FAKE_TICKS, we'll return empty here; actual data is streamed via aggregates_ws_loop
+        logger.debug(f"FAKE_TICKS: {target_symbol} data available in cache ({len(HISTORICAL_DATA_CACHE[target_symbol])} bars)")
+        return {}
     else:
-        # REAL mode: fetch from Polygon API v2 snapshot endpoint
-        if not POLYGON_API_KEY:
-            logger.error("POLYGON_API_KEY is missing; cannot fetch snapshot")
-            return {}
-
-        url = build_snapshot_url(target_symbol)
-        params = {"apiKey": POLYGON_API_KEY}
-
-        try:
-            logger.info(f"📊 Fetching Polygon API: {target_symbol} | URL: {url}")
-            async with session.get(url, params=params, timeout=10) as resp:
-                if resp.status != 200:
-                    text = await resp.text()
-                    logger.error(f"❌ Polygon API error {resp.status} for {target_symbol}: {text}")
-                    return {}
-                data = await resp.json()
-                
-                # The v2 snapshot endpoint returns "ticker" as a direct object
-                if "ticker" in data:
-                    ticker_data = data["ticker"]
-                    # Try to get price from: minute data -> day data -> previous day data
-                    price = ticker_data.get("min", {}).get("c") or ticker_data.get("day", {}).get("c") or ticker_data.get("prevDay", {}).get("c")
-                    volume = ticker_data.get("min", {}).get("v") or ticker_data.get("day", {}).get("v") or 0
-                    timestamp = ticker_data.get("updated")
-                    
-                    logger.info(f"✅ Polygon {target_symbol}: Price=${price}, Vol={volume}, Updated={timestamp}")
-                    
-                    # Return as-is since it's already in the format we expect
-                    return data
-                else:
-                    logger.warning(f"⚠️  Polygon {target_symbol}: No 'ticker' object in response")
-                
-                return data
-        except Exception as e:
-            logger.error(f"❌ Polygon API exception for {target_symbol}: {e}")
-            return {}
+        # REAL mode now handled via WebSocket aggregates; HTTP snapshot fetch disabled
+        logger.debug("Real snapshot fetch skipped (using WebSocket aggregates)")
+        return {}
 
 
 def map_snapshot_to_event(data: dict) -> dict | None:
@@ -249,6 +229,108 @@ def map_snapshot_to_event(data: dict) -> dict | None:
     }
 
 
+def map_aggregate_to_snapshot(event: dict) -> dict | None:
+    """Convert per-second aggregate payload to snapshot shape expected by the UI."""
+    try:
+        symbol = (event.get("sym") or "").upper()
+        close_price = event.get("c")
+        if not symbol or close_price is None:
+            return None
+
+        open_price = event.get("o") or close_price
+        high_price = event.get("h") or close_price
+        low_price = event.get("l") or close_price
+        volume = event.get("v") or 0
+        agg_volume = event.get("av") or volume
+        trade_count = event.get("z") or 0
+        start_ms = event.get("s") or int(time.time() * 1000)
+        end_ms = event.get("e") or start_ms
+        updated_ns = int(end_ms * 1_000_000)
+
+        return {
+            "ticker": {
+                "ticker": symbol,
+                "day": {
+                    "o": open_price,
+                    "h": high_price,
+                    "l": low_price,
+                    "c": close_price,
+                    "v": agg_volume,
+                    "vw": event.get("vw"),
+                },
+                "min": {
+                    "o": open_price,
+                    "h": high_price,
+                    "l": low_price,
+                    "c": close_price,
+                    "v": volume,
+                    "n": trade_count,
+                    "t": start_ms,
+                },
+                "prevDay": {},
+                "updated": updated_ns,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Failed to map aggregate to snapshot: {e}", exc_info=True)
+        return None
+
+
+async def broadcast_symbols(symbol_snapshots: dict) -> None:
+    """Broadcast symbol snapshots to all connected clients."""
+    if not symbol_snapshots:
+        return
+
+    message = json.dumps({
+        "timestamp": int(time.time() * 1e9),
+        "symbols": symbol_snapshots,
+    })
+
+    disconnected_clients = set()
+    for client in connected_clients:
+        try:
+            await client.send(message)
+        except websockets.exceptions.ConnectionClosed:
+            disconnected_clients.add(client)
+        except Exception as e:
+            logger.warning(f"Failed to send to client: {e}")
+            disconnected_clients.add(client)
+
+    for client in disconnected_clients:
+        connected_clients.discard(client)
+
+    logger.info(f"📡 Broadcasted {len(symbol_snapshots)} symbols to {len(connected_clients)} clients")
+
+
+async def pause_stream() -> dict:
+    """Pause the tick stream and save current indices."""
+    global IS_PAUSED, PAUSED_INDICES
+    async with PAUSE_LOCK:
+        if IS_PAUSED:
+            return {"status": "already_paused", "message": "Stream is already paused"}
+        IS_PAUSED = True
+        logger.warning("⏸️  STREAM PAUSED - No ticks will be sent to clients")
+        return {"status": "paused", "message": "Stream paused successfully"}
+
+
+async def resume_stream() -> dict:
+    """Resume the tick stream from saved indices."""
+    global IS_PAUSED
+    async with PAUSE_LOCK:
+        if not IS_PAUSED:
+            return {"status": "already_running", "message": "Stream is already running"}
+        IS_PAUSED = False
+        logger.warning("▶️  STREAM RESUMED - Ticks resuming from checkpoint")
+        return {"status": "resumed", "message": "Stream resumed successfully"}
+
+
+async def get_pause_status() -> dict:
+    """Get current pause status."""
+    global IS_PAUSED
+    async with PAUSE_LOCK:
+        return {"is_paused": IS_PAUSED, "status": "paused" if IS_PAUSED else "running"}
+
+
 async def handler(websocket):
     """Handle new client connections"""
     client_id = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
@@ -263,14 +345,41 @@ async def handler(websocket):
                 logger.warning(f"Invalid JSON from {client_id}: {message}")
                 continue
 
+            # Handle trade events from bot
+            if data.get("type") == "TRADE_EVENT":
+                logger.info(f"📨 Received trade event from bot: {data.get('action')} for {data.get('symbol')}")
+                # Broadcast to all OTHER clients (dashboard)
+                broadcast_msg = json.dumps(data)
+                # Make a copy to avoid "Set changed size during iteration" error
+                clients_to_notify = [c for c in connected_clients if c != websocket]
+                logger.info(f"📢 Notifying {len(clients_to_notify)} dashboard clients of {data.get('action')} for {data.get('symbol')}")
+                for client in clients_to_notify:
+                    try:
+                        await client.send(broadcast_msg)
+                        logger.info(f"✅ Sent {data.get('action')} event to client")
+                    except Exception as e:
+                        logger.warning(f"❌ Failed to send trade event to client: {e}")
+                continue
+            
+            # Handle command messages (replace symbol, pause/resume, etc.)
             cmd = data.get("command")
             if cmd == "replace_symbol":
                 slot = data.get("slot")
                 symbol = data.get("symbol")
                 result = await replace_symbol(slot, symbol)
                 await websocket.send(json.dumps({"type": "replace_ack", **result}))
+            elif cmd == "pause":
+                result = await pause_stream()
+                await websocket.send(json.dumps({"type": "pause_ack", **result}))
+            elif cmd == "resume":
+                result = await resume_stream()
+                await websocket.send(json.dumps({"type": "resume_ack", **result}))
+            elif cmd == "get_pause_status":
+                result = await get_pause_status()
+                await websocket.send(json.dumps({"type": "pause_status", **result}))
             else:
-                logger.debug(f"Unknown command from {client_id}: {data}")
+                if "command" in data or data.get("type"):
+                    logger.debug(f"Unknown message from {client_id}: {data}")
     
     except websockets.exceptions.ConnectionClosed:
         logger.info(f"Client disconnected: {client_id}")
@@ -290,8 +399,7 @@ async def event_broadcaster():
         while True:
             try:
                 fetch_cycle += 1
-                async with SYMBOL_LOCK:
-                    symbols_snapshot = list(SYMBOLS_ACTIVE)
+                symbols_snapshot = await get_active_symbols()
                 
                 logger.info(f"🔄 Fetch cycle #{fetch_cycle}: Fetching {len(symbols_snapshot)} symbols: {symbols_snapshot}")
                 
@@ -299,43 +407,182 @@ async def event_broadcaster():
                 snapshot_tasks = [fetch_snapshot(session, symbol) for symbol in symbols_snapshot]
                 snapshots = await asyncio.gather(*snapshot_tasks, return_exceptions=True)
                 
-                # Combine snapshots into one message
-                combined_message = {
-                    "timestamp": int(time.time() * 1e9),
-                    "symbols": {}
-                }
-                
+                symbol_payload = {}
                 successful_count = 0
                 for symbol, snapshot in zip(symbols_snapshot, snapshots):
                     if isinstance(snapshot, dict) and snapshot and "ticker" in snapshot:
-                        combined_message["symbols"][symbol] = snapshot
+                        symbol_payload[symbol] = snapshot
                         successful_count += 1
                     else:
                         logger.warning(f"⚠️  Empty/invalid snapshot for {symbol}: {snapshot}")
                 
                 logger.info(f"✅ Broadcast cycle #{fetch_cycle}: Successfully fetched {successful_count}/{len(symbols_snapshot)} symbols")
-                logger.debug(f"Combined message has {len(combined_message['symbols'])} symbols")
-                
-                # Always broadcast even if some symbols failed, but require at least some data
-                if combined_message["symbols"] and connected_clients:
-                    message = json.dumps(combined_message)
-                    disconnected_clients = set()
-                    for client in connected_clients:
-                        try:
-                            await client.send(message)
-                        except websockets.exceptions.ConnectionClosed:
-                            disconnected_clients.add(client)
+                logger.debug(f"Combined message has {len(symbol_payload)} symbols")
 
-                    for client in disconnected_clients:
-                        connected_clients.discard(client)
-
-                    active_symbols = list(combined_message["symbols"].keys())
-                    logger.info(f"📡 Broadcast cycle #{fetch_cycle}: Sent to {len(connected_clients)} clients ({len(active_symbols)} symbols: {active_symbols})")
+                if symbol_payload:
+                    await broadcast_symbols(symbol_payload)
 
             except Exception as e:
                 logger.error(f"❌ Broadcaster error: {e}")
 
             await asyncio.sleep(FETCH_INTERVAL)
+
+
+async def aggregates_ws_loop():
+    """Stream aggregates - from WebSocket (real mode) or historical data (FAKE_TICKS mode)."""
+    if FAKE_TICKS:
+        await historical_data_streaming_loop()
+    else:
+        await polygon_aggregates_ws_loop()
+
+
+async def historical_data_streaming_loop():
+    """Stream historical data tick-by-tick to simulate live trading."""
+    logger.info("Starting historical data streaming loop (FAKE_TICKS mode)")
+    
+    # Load historical data once
+    load_historical_data()
+    
+    symbol_bars: Dict[str, List[dict]] = HISTORICAL_DATA_CACHE
+    if not symbol_bars:
+        logger.error("No historical data loaded!")
+        await asyncio.sleep(5)
+        return
+    
+    # Create iterators for each symbol
+    symbol_indices: Dict[str, int] = {sym: 0 for sym in symbol_bars.keys()}
+    tick_count = 0
+    
+    # Stream bars continuously, cycling through symbols
+    while True:
+        try:
+            # Check if paused - if so, just wait and don't process ticks
+            if IS_PAUSED:
+                await asyncio.sleep(0.1)
+                continue
+            
+            symbols = await get_active_symbols()
+            if not symbols:
+                logger.warning("No active symbols; sleeping...")
+                await asyncio.sleep(1)
+                continue
+            
+            symbol_updates = {}
+            
+            # Stream one bar per active symbol in each cycle
+            for symbol in symbols:
+                if symbol not in symbol_bars or not symbol_bars[symbol]:
+                    logger.warning(f"No bars for symbol {symbol}")
+                    continue
+                
+                bars = symbol_bars[symbol]
+                idx = symbol_indices.get(symbol, 0)
+                
+                # Cycle through bars (when reaching the end, start over)
+                if idx >= len(bars):
+                    idx = 0
+                    logger.info(f"Cycling {symbol} bars (restarted from beginning)")
+                
+                bar = bars[idx]
+                symbol_indices[symbol] = idx + 1
+                tick_count += 1
+                
+                # Convert bar to snapshot format
+                snapshot = map_aggregate_to_snapshot(bar)
+                if snapshot:
+                    symbol_updates[symbol] = snapshot
+            
+            if symbol_updates:
+                logger.debug(f"Historical tick #{tick_count}: Streaming {len(symbol_updates)} symbols")
+                await broadcast_symbols(symbol_updates)
+            
+            # Sleep to simulate real-time (FETCH_INTERVAL = 1 second for 1-minute bars)
+            await asyncio.sleep(FETCH_INTERVAL)
+        
+        except Exception as e:
+            logger.error(f"Historical streaming error: {e}", exc_info=True)
+            await asyncio.sleep(5)
+
+
+async def polygon_aggregates_ws_loop():
+    """Stream per-second aggregates from provider WebSocket and broadcast to UI."""
+    logger.info("Starting Polygon aggregates WebSocket streaming (real mode)")
+    
+    while True:
+        symbols = await get_active_symbols()
+        if not symbols:
+            logger.warning("No active symbols to subscribe; sleeping...")
+            await asyncio.sleep(1)
+            continue
+
+        subscribe_params = ",".join(f"A.{s}" for s in symbols)
+        logger.info(f"Connecting to aggregates WS: {POLYGON_WS_URL} | symbols={symbols}")
+
+        try:
+            async with websockets.connect(POLYGON_WS_URL) as ws:
+                if POLYGON_API_KEY:
+                    await ws.send(json.dumps({"action": "auth", "params": POLYGON_API_KEY}))
+
+                await ws.send(json.dumps({"action": "subscribe", "params": subscribe_params}))
+                subscribed = set(symbols)
+                logger.info(f"Subscribed to aggregates: {sorted(subscribed)}")
+
+                while True:
+                    raw = await ws.recv()
+                    try:
+                        data = json.loads(raw)
+                    except json.JSONDecodeError:
+                        logger.warning(f"Invalid JSON from WS: {raw}")
+                        continue
+
+                    events = data if isinstance(data, list) else [data]
+                    symbol_updates = {}
+
+                    for event in events:
+                        if event.get("ev") == "status":
+                            status = event.get("status")
+                            message = event.get("message")
+                            if status and status.lower() != "connected":
+                                logger.warning(f"WS status: {status} - {message}")
+                            else:
+                                logger.info(f"WS status: {status} - {message}")
+                            continue
+                        if event.get("ev") != "A":
+                            continue
+                        snapshot = map_aggregate_to_snapshot(event)
+                        if snapshot:
+                            symbol = (event.get("sym") or "").upper()
+                            symbol_updates[symbol] = snapshot
+
+                    if symbol_updates:
+                        logger.info(f"Aggregates received: {len(symbol_updates)} symbols")
+                        await broadcast_symbols(symbol_updates)
+
+                    # Detect symbol list changes and adjust subscriptions
+                    current_symbols = set(await get_active_symbols())
+                    if current_symbols != subscribed:
+                        additions = current_symbols - subscribed
+                        removals = subscribed - current_symbols
+
+                        if additions:
+                            await ws.send(json.dumps({
+                                "action": "subscribe",
+                                "params": ",".join(f"A.{s}" for s in additions)
+                            }))
+                            logger.info(f"Subscribed to new symbols: {sorted(additions)}")
+                        if removals:
+                            await ws.send(json.dumps({
+                                "action": "unsubscribe",
+                                "params": ",".join(f"A.{s}" for s in removals)
+                            }))
+                            logger.info(f"Unsubscribed symbols: {sorted(removals)}")
+
+                        subscribed = current_symbols
+
+        except Exception as e:
+            logger.error(f"Aggregates WebSocket error: {e}", exc_info=True)
+            await asyncio.sleep(3)
+
 
 
 async def main():
@@ -346,36 +593,44 @@ async def main():
         print("WebSocket Trading Server Started")
         print("=" * 60)
         print(f"Server running on ws://localhost:8765")
-        print(f"Data Mode: {'FAKE_TICKS (synthetic)' if FAKE_TICKS else 'REAL (Polygon API)'}")
+        if FAKE_TICKS:
+            print(f"Data Mode: FAKE_TICKS (using historical data from {HISTORICAL_DATA_FILE})")
+        else:
+            print(f"Data Mode: REAL (using Polygon WebSocket aggregates)")
+        print(f"Active Symbols: {SYMBOLS_ACTIVE}")
         print(f"Waiting for clients to connect...")
         print("=" * 60)
-        logger.info(f"Data Mode: {'FAKE_TICKS' if FAKE_TICKS else 'REAL'}")
+        logger.info(f"Data Mode: {'FAKE_TICKS (historical)' if FAKE_TICKS else 'REAL (WS aggregates)'}")
+
         
-        # Run the event broadcaster as a concurrent task
-        asyncio.create_task(event_broadcaster())
+        # Run the data pipeline as a concurrent task
+        # When FAKE_TICKS=true: stream historical data from JSON file
+        # When FAKE_TICKS=false: stream live data from Polygon WebSocket
+        asyncio.create_task(aggregates_ws_loop())
         
         # Start the trading bot (NEW)
         try:
-            from bot.runner import bot_task, set_broadcast_callback
-            
-            # Set callback for bot to broadcast events to UI clients
-            async def broadcast_bot_event(event):
-                """Broadcast bot event to all connected clients"""
-                message = json.dumps(event)
-                disconnected = set()
-                for client in connected_clients:
-                    try:
-                        await client.send(message)
-                    except Exception as e:
-                        logger.warning(f"Failed to send to client: {e}")
-                        disconnected.add(client)
-                # Clean up disconnected clients
-                for client in disconnected:
-                    connected_clients.discard(client)
-            
-            set_broadcast_callback(broadcast_bot_event)
-            logger.info("Starting trading bot...")
-            asyncio.create_task(bot_task())
+            if FAKE_TICKS:
+                from bot.runner import bot_task, set_broadcast_callback
+
+                async def broadcast_bot_event(event):
+                    """Broadcast bot event to all connected clients"""
+                    message = json.dumps(event)
+                    disconnected = set()
+                    for client in connected_clients:
+                        try:
+                            await client.send(message)
+                        except Exception as e:
+                            logger.warning(f"Failed to send to client: {e}")
+                            disconnected.add(client)
+                    for client in disconnected:
+                        connected_clients.discard(client)
+
+                set_broadcast_callback(broadcast_bot_event)
+                logger.info("Starting trading bot (historical playback)...")
+                asyncio.create_task(bot_task())
+            else:
+                logger.info("FAKE_TICKS=false → skipping historical bot runner integration")
         
         except ImportError as e:
             logger.warning(f"Bot import failed: {e}. Running server only.")

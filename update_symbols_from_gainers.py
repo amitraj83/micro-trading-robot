@@ -17,8 +17,8 @@ from typing import List
 from dotenv import load_dotenv
 from find_matching_tickers import find_matching_tickers
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (always override to pick up latest .env edits)
+load_dotenv(override=True)
 
 
 def update_env_symbols(new_symbols: List[str], env_file: str = '.env') -> bool:
@@ -43,10 +43,10 @@ def update_env_symbols(new_symbols: List[str], env_file: str = '.env') -> bool:
         with open(env_file, 'r') as f:
             content = f.read()
         
-        # Replace SYMBOLS line (handles different spacing)
-        pattern = r'SYMBOLS\s*=\s*[^\n]*'
+        # Replace SYMBOLS line only (anchor line start to avoid hitting MAX_SYMBOLS)
+        pattern = r'^\s*SYMBOLS\s*=\s*.*$'
         replacement = f'SYMBOLS={symbols_str}'
-        new_content = re.sub(pattern, replacement, content)
+        new_content = re.sub(pattern, replacement, content, flags=re.MULTILINE)
         
         # Write back
         with open(env_file, 'w') as f:
@@ -87,25 +87,50 @@ def main():
     print(f"Current SYMBOLS: {','.join(current_symbols)}\n")
     
     # Get configuration
-    platform = os.getenv('DAY_GAINER_FETCH_PLATFORM', 'POLYGON').upper()
+    platform_raw = os.getenv('DAY_GAINER_FETCH_PLATFORM', 'POLYGON')
+    platform_list = [p.strip().upper() for p in platform_raw.split(',') if p.strip()]
+    if not platform_list:
+        platform_list = ['POLYGON']
     api_key = os.getenv('POLYGON_API_KEY')
     validate = os.getenv('VALIDATE_GAINERS_WITH_POLYGON', 'true').lower() == 'true'
     screener_type = os.getenv('YAHOO_SCREENER_TYPE', 'day_gainers')
+    # Cap how many symbols we keep; default 20 for dashboard grid
+    try:
+        max_symbols = int(os.getenv('MAX_SYMBOLS', '20'))
+    except ValueError:
+        max_symbols = 20
+    max_symbols = max(1, max_symbols)
     
-    print(f"Platform: {platform}")
-    if platform == 'YAHOO':
+    print(f"Platforms (priority): {platform_list}")
+    if 'YAHOO' in platform_list:
         print(f"Screener Type: {screener_type}")
     print(f"Validate with Polygon: {validate}\n")
-    
-    # Fetch confirmed gainers (limit 20 for scrollable dashboard)
-    # Only validate if YAHOO and VALIDATE_GAINERS_WITH_POLYGON is true
-    matches = find_matching_tickers(
-        api_key=api_key,
-        platform=platform,
-        limit=20,
-        validate_with_polygon=(validate and platform == 'YAHOO'),
-        screener_type=screener_type
-    )
+
+    # Try platforms in order until we get matches
+    matches = []
+    used_platform = None
+    for plat in platform_list:
+        used_platform = plat
+        matches = find_matching_tickers(
+            api_key=api_key,
+            platform=plat,
+            limit=max_symbols,
+            validate_with_polygon=(validate and plat == 'YAHOO'),
+            screener_type=screener_type
+        )
+        if matches:
+            break
+
+    # If still nothing and YAHOO first, attempt POLYGON as last resort
+    if not matches and 'POLYGON' not in platform_list:
+        used_platform = 'POLYGON'
+        matches = find_matching_tickers(
+            api_key=api_key,
+            platform='POLYGON',
+            limit=max_symbols,
+            validate_with_polygon=False,
+            screener_type=screener_type
+        )
     
     if not matches:
         print(f"\n{'='*80}")
@@ -127,12 +152,12 @@ def main():
         print(f"   Change: {match['todaysChangePerc']:+.2f}% | Price: ${match['currentPrice']:.2f}\n")
     
     # Handle fallback if fewer than 20
-    if len(new_symbols) < 20:
-        print(f"⚠ Only {len(new_symbols)} confirmed (target 20)")
+    if len(new_symbols) < max_symbols:
+        print(f"⚠ Only {len(new_symbols)} confirmed (target {max_symbols})")
         
         # Fill remaining with existing symbols
         fallback_symbols = [s for s in current_symbols if s not in new_symbols]
-        needed = min(20 - len(new_symbols), len(fallback_symbols))
+        needed = min(max_symbols - len(new_symbols), len(fallback_symbols))
         
         for i in range(needed):
             if fallback_symbols:

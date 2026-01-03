@@ -10,9 +10,15 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import yfinance as yf
 import pandas as pd
-from models import Tick
-from config import SYMBOLS as DEFAULT_SYMBOLS
 import time
+
+# Support both package and module execution
+try:
+    from models import Tick
+    from config import SYMBOLS as DEFAULT_SYMBOLS
+except ImportError:  # When run as package (python -m bot.historical_backtest)
+    from bot.models import Tick
+    from bot.config import SYMBOLS as DEFAULT_SYMBOLS
 
 # Setup logging
 logging.basicConfig(

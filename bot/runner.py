@@ -24,6 +24,16 @@ print("DEBUG: Starting bot runner...", flush=True)
 # Setup logging
 LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
 LOG_DIR.mkdir(exist_ok=True)
+LOG_FILE = LOG_DIR / "bot_runner.log"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
 
 # Change to workspace root so relative paths work correctly
 os.chdir(Path(__file__).resolve().parent.parent)
@@ -101,13 +111,43 @@ async def connect_to_historical_data_stream():
     symbols_str = os.getenv("SYMBOLS", "QQQ,SPY,NVDA,AAPL,MSFT")
     symbols = [s.strip() for s in symbols_str.split(",")]
     
-    ws_url = os.getenv("WS_URL", "ws://localhost:8001")  # Historical data server
+    # Determine WebSocket URL based on FAKE_TICKS setting
+    fake_ticks = os.getenv("FAKE_TICKS", "false").lower() == "true"
+    if fake_ticks:
+        ws_url = "ws://localhost:8001"  # Historical data server
+        logger.info("🎬 FAKE_TICKS=true → Using historical data server at ws://localhost:8001")
+    else:
+        ws_url = os.getenv("WS_URL", "ws://localhost:8765")  # Real WebSocket server
     
     logger.info(f"Connecting to historical data stream at {ws_url}")
     logger.info(f"Subscribing to symbols: {', '.join(symbols)}")
     
     tick_count = 0
     trade_count = 0
+    broadcast_ws = None  # Connection to main websocket server for broadcasting events
+    
+    # Helper to ensure broadcast connection exists
+    async def broadcast_event(event):
+        """Send event to dashboard via websocket server"""
+        nonlocal broadcast_ws
+        try:
+            # Check if connection is closed or doesn't exist
+            if broadcast_ws is None:
+                broadcast_ws = await websockets.connect("ws://localhost:8765")
+                logger.info("🔗 Broadcast connection established")
+            
+            # Try to send; if connection is dead, reconnect
+            try:
+                await broadcast_ws.send(json.dumps(event))
+                logger.info(f"📤 Broadcasted event: {event.get('action')}")
+            except (websockets.exceptions.ConnectionClosed, RuntimeError):
+                # Connection died, reconnect and retry
+                broadcast_ws = await websockets.connect("ws://localhost:8765")
+                logger.info("🔗 Broadcast connection re-established (was closed)")
+                await broadcast_ws.send(json.dumps(event))
+                logger.info(f"📤 Broadcasted event (retry): {event.get('action')}")
+        except Exception as e:
+            logger.info(f"⚠️ Failed to broadcast event: {e}")
     
     try:
         async with websockets.connect(ws_url) as websocket:
@@ -166,29 +206,43 @@ async def connect_to_historical_data_stream():
                             )
                         
                         # Broadcast to UI - enhanced with more details
-                        if _broadcast_callback:
-                            broadcast_event = {
-                                "type": "TRADE_EVENT",
-                                "symbol": tick.symbol,
-                                "action": action,
-                                "reason": reason,
-                                "price": tick.price,
-                                "timestamp": datetime.now(tz=TIMEZONE).isoformat(),
+                        broadcast_msg = {
+                            "type": "TRADE_EVENT",
+                            "symbol": tick.symbol,
+                            "action": action,
+                            "reason": reason,
+                            "price": tick.price,
+                            "timestamp": datetime.now(tz=TIMEZONE).isoformat(),
+                        }
+                        
+                        # Add trade details if available
+                        if trade_obj:
+                            broadcast_msg["trade"] = {
+                                "direction": getattr(trade_obj, "direction", None),
+                                "entry_price": getattr(trade_obj, "entry_price", None),
+                                "pnl": getattr(trade_obj, "pnl", None),
+                                "entry_time": str(getattr(trade_obj, "entry_time", None)),
                             }
-                            
-                            # Add trade details if available
-                            if trade_obj:
-                                broadcast_event["trade"] = {
-                                    "direction": getattr(trade_obj, "direction", None),
-                                    "entry_price": getattr(trade_obj, "entry_price", None),
-                                    "pnl": getattr(trade_obj, "pnl", None),
-                                    "entry_time": str(getattr(trade_obj, "entry_time", None)),
-                                }
-                            
-                            try:
-                                await _broadcast_callback(broadcast_event)
-                            except Exception as e:
-                                logger.debug(f"Failed to broadcast event: {e}")
+                        
+                        try:
+                            await broadcast_event(broadcast_msg)
+                        except Exception as e:
+                            logger.debug(f"Failed to broadcast event: {e}")
+                    
+                    # Test event injection after 100 ticks (for debugging)
+                    if tick_count == 100 and trade_count == 0:
+                        logger.info("🧪 TEST: Injecting test OPEN event for QQQ after 100 ticks")
+                        test_event = {
+                            "type": "TRADE_EVENT",
+                            "action": "OPEN",
+                            "symbol": "QQQ",
+                            "trade": {
+                                "entry_price": tick.price - 0.50,  # Slightly below current price
+                                "direction": "LONG",
+                            },
+                            "reason": "[TEST] Auto-injected event"
+                        }
+                        await broadcast_event(test_event)
                     
                     # Periodic status
                     if tick_count % 100 == 0:

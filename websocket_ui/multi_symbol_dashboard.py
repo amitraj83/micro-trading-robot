@@ -54,6 +54,11 @@ class MultiSymbolDashboard:
         self.strategy_manager = StrategyManager(symbols)
         self.tick_counts = {sym: 0 for sym in symbols}
         self.trade_counters = {sym: 0 for sym in symbols}
+        self.total_trades = 0  # Total trades across all symbols
+        self.total_pnl = 0.0   # Total P/L across all symbols
+        self.trades_by_symbol = {sym: [] for sym in symbols}  # Track closed trades per symbol
+        self.open_prices = {sym: None for sym in symbols}  # Current open trade entry price
+        self.close_prices = {sym: None for sym in symbols}  # Last closed trade exit price
         self.connection_status = "Disconnected"
         self.logger = TickLogger()
         
@@ -86,6 +91,24 @@ class MultiSymbolDashboard:
             self.ws_loop.call_soon_threadsafe(self.ws_command_queue.put_nowait, payload)
         except Exception as e:
             print(f"[Replace] Failed to enqueue command: {e}")
+
+    def on_pause_click(self):
+        """Handle PAUSE button click"""
+        print("[Pause] Sending pause command to server")
+        self.enqueue_ws_command({"command": "pause"})
+        # Disable pause button, enable resume button
+        self.pause_button.config(state=tk.DISABLED)
+        self.resume_button.config(state=tk.NORMAL)
+        self.status_label.config(text="Status: ⏸  PAUSED")
+
+    def on_resume_click(self):
+        """Handle RESUME button click"""
+        print("[Resume] Sending resume command to server")
+        self.enqueue_ws_command({"command": "resume"})
+        # Enable pause button, disable resume button
+        self.pause_button.config(state=tk.NORMAL)
+        self.resume_button.config(state=tk.DISABLED)
+        self.status_label.config(text="Status: ▶  RUNNING")
 
     def handle_replace_symbol(self):
         """Handle replace button click"""
@@ -147,8 +170,7 @@ class MultiSymbolDashboard:
         # Move chart/stat widgets to new key and retitle
         if old_symbol in self.chart_frames:
             self.chart_frames[new_symbol] = self.chart_frames.pop(old_symbol)
-            ax = self.chart_frames[new_symbol]['ax']
-            ax.set_title(f"{new_symbol} Price Chart")
+            # No more chart title - instead update the stats line at the top
             self.chart_frames[new_symbol]['canvas'].draw()
 
         if old_symbol in self.stat_labels:
@@ -156,6 +178,10 @@ class MultiSymbolDashboard:
             self.stat_labels[new_symbol]['price'].config(text="Price: --")
             self.stat_labels[new_symbol]['pnl'].config(text="P/L: --")
             self.stat_labels[new_symbol]['trades'].config(text="Trades: 0")
+            self.stat_labels[new_symbol]['open'].config(text="Open: --")
+            self.stat_labels[new_symbol]['close'].config(text="Close: --")
+            self.stat_labels[new_symbol]['range_status'].config(text="Range: --")
+            self.stat_labels[new_symbol]['range_level'].config(text="--")
 
         if old_symbol in self.event_texts:
             self.event_texts[new_symbol] = self.event_texts.pop(old_symbol)
@@ -172,54 +198,20 @@ class MultiSymbolDashboard:
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Header frame
-        header_frame = ttk.Frame(main_frame)
-        header_frame.pack(fill=tk.X, pady=(0, 10))
+        # Connection status with control buttons
+        status_frame = ttk.Frame(main_frame)
+        status_frame.pack(fill=tk.X, pady=(0, 5))
+        self.status_label = ttk.Label(status_frame, text="Status: Connecting...", font=("Arial", 10))
+        self.status_label.pack(side=tk.LEFT)
         
-        # Title
-        title_label = ttk.Label(header_frame, text=f"🤖 Multi-Symbol Trading Bot ({len(self.symbols)} tickers) - 10x2 Grid", 
-                               font=("Arial", 14, "bold"))
-        title_label.pack(side=tk.LEFT)
-        
-        # Status
-        self.status_label = ttk.Label(header_frame, text="Status: Connecting...", 
-                                      font=("Arial", 10))
-        self.status_label.pack(side=tk.RIGHT)
+        # Pause/Resume buttons
+        button_frame = ttk.Frame(status_frame)
+        button_frame.pack(side=tk.RIGHT)
+        self.pause_button = ttk.Button(button_frame, text="⏸  PAUSE", command=self.on_pause_click)
+        self.pause_button.pack(side=tk.LEFT, padx=5)
+        self.resume_button = ttk.Button(button_frame, text="▶  RESUME", command=self.on_resume_click, state=tk.DISABLED)
+        self.resume_button.pack(side=tk.LEFT, padx=5)
 
-        # Replace ticker controls (hot-swap)
-        replace_frame = ttk.Frame(main_frame)
-        replace_frame.pack(fill=tk.X, pady=(0, 10))
-
-        ttk.Label(replace_frame, text="Replace Symbol:").pack(side=tk.LEFT, padx=(0, 5))
-        self.symbol_var = tk.StringVar(value=self.symbols[0] if self.symbols else "")
-        self.symbol_combo = ttk.Combobox(replace_frame, textvariable=self.symbol_var, width=10, state="readonly")
-        self.symbol_combo['values'] = list(self.symbols)
-        self.symbol_combo.pack(side=tk.LEFT, padx=(0, 10))
-
-        ttk.Label(replace_frame, text="With:").pack(side=tk.LEFT, padx=(0, 5))
-        self.new_ticker_var = tk.StringVar()
-        self.new_ticker_entry = ttk.Entry(replace_frame, textvariable=self.new_ticker_var, width=12)
-        self.new_ticker_entry.pack(side=tk.LEFT, padx=(0, 10))
-
-        replace_btn = ttk.Button(replace_frame, text="Replace", command=self.handle_replace_symbol)
-        replace_btn.pack(side=tk.LEFT)
-        
-        # Global stats frame
-        global_stats_frame = ttk.LabelFrame(main_frame, text="Portfolio Stats", padding=10)
-        global_stats_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.global_pnl_label = ttk.Label(global_stats_frame, text="Total P/L: --", 
-                                         font=("Arial", 11, "bold"))
-        self.global_pnl_label.pack(side=tk.LEFT, padx=20)
-        
-        self.global_trades_label = ttk.Label(global_stats_frame, text="Trades: 0", 
-                                            font=("Arial", 10))
-        self.global_trades_label.pack(side=tk.LEFT, padx=20)
-        
-        self.open_positions_label = ttk.Label(global_stats_frame, text=f"Open Positions: 0/{len(self.symbols)}", 
-                                             font=("Arial", 10))
-        self.open_positions_label.pack(side=tk.LEFT, padx=20)
-        
         # 10x2 Grid for charts with scrollbar
         grid_container = ttk.Frame(main_frame)
         grid_container.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
@@ -234,7 +226,12 @@ class MultiSymbolDashboard:
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
         
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        # Match inner frame width to canvas to avoid right-side whitespace
+        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.bind(
+            "<Configure>",
+            lambda e: canvas.itemconfig(canvas_window, width=e.width)
+        )
         canvas.configure(yscrollcommand=scrollbar.set)
         
         # Configure mousewheel scrolling
@@ -256,50 +253,98 @@ class MultiSymbolDashboard:
             col = i % 2
             self.create_symbol_chart(scrollable_frame, symbol, row, col)
         
-        # Event log at bottom
-        events_frame = ttk.LabelFrame(main_frame, text="Event Log (All Symbols)", padding=5)
-        events_frame.pack(fill=tk.X)
+        # Bottom controls frame - Portfolio Stats and Replace Symbol side by side
+        bottom_frame = ttk.Frame(main_frame)
+        bottom_frame.pack(fill=tk.X, pady=(0, 10))
         
-        scrollbar = ttk.Scrollbar(events_frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        # Portfolio Stats (left side)
+        global_stats_frame = ttk.LabelFrame(bottom_frame, text="Portfolio Stats", padding=10)
+        global_stats_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
-        self.events_text = tk.Text(events_frame, height=4, yscrollcommand=scrollbar.set,
-                                   font=("Courier", 8))
-        self.events_text.pack(fill=tk.BOTH, expand=True)
-        scrollbar.config(command=self.events_text.yview)
+        self.global_pnl_label = ttk.Label(global_stats_frame, text="Total P/L: $0.00", 
+                                         font=("Arial", 11, "bold"))
+        self.global_pnl_label.pack(side=tk.LEFT, padx=20)
+        
+        self.global_trades_label = ttk.Label(global_stats_frame, text="Trades: 0", 
+                                            font=("Arial", 10))
+        self.global_trades_label.pack(side=tk.LEFT, padx=20)
+        
+        self.open_positions_label = ttk.Label(global_stats_frame, text=f"Open Positions: 0/{len(self.symbols)}", 
+                                             font=("Arial", 10))
+        self.open_positions_label.pack(side=tk.LEFT, padx=20)
+
+        # Replace Symbol controls (right side)
+        replace_frame = ttk.LabelFrame(bottom_frame, text="Replace Symbol", padding=10)
+        replace_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
+
+        ttk.Label(replace_frame, text="Symbol:").pack(side=tk.LEFT, padx=(0, 5))
+        self.symbol_var = tk.StringVar(value=self.symbols[0] if self.symbols else "")
+        self.symbol_combo = ttk.Combobox(replace_frame, textvariable=self.symbol_var, width=10, state="readonly")
+        self.symbol_combo['values'] = list(self.symbols)
+        self.symbol_combo.pack(side=tk.LEFT, padx=(0, 10))
+
+        ttk.Label(replace_frame, text="With:").pack(side=tk.LEFT, padx=(0, 5))
+        self.new_ticker_var = tk.StringVar()
+        self.new_ticker_entry = ttk.Entry(replace_frame, textvariable=self.new_ticker_var, width=12)
+        self.new_ticker_entry.pack(side=tk.LEFT, padx=(0, 10))
+
+        replace_btn = ttk.Button(replace_frame, text="Replace", command=self.handle_replace_symbol)
+        replace_btn.pack(side=tk.LEFT)
     
     def create_symbol_chart(self, parent, symbol, row, col):
         """Create a chart frame for one symbol in the grid"""
-        frame = ttk.LabelFrame(parent, text=f"{symbol} Trading", padding=5)
+        frame = ttk.Frame(parent)
         frame.grid(row=row, column=col, sticky="nsew", padx=5, pady=5)
         
-        # Stats sub-frame
+        # Single line stats frame - all stats in one row
         stats_frame = ttk.Frame(frame)
         stats_frame.pack(fill=tk.X, pady=(0, 5))
         
-        price_label = ttk.Label(stats_frame, text="Price: --", font=("Arial", 10, "bold"))
-        price_label.pack(side=tk.LEFT, padx=10)
+        # Add symbol label first
+        symbol_label = ttk.Label(stats_frame, text=f"{symbol}", font=("Arial", 11, "bold"))
+        symbol_label.pack(side=tk.LEFT, padx=5)
+        
+        # Separator
+        ttk.Separator(stats_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
+        
+        price_label = ttk.Label(stats_frame, text="Price: --", font=("Arial", 9))
+        price_label.pack(side=tk.LEFT, padx=3)
         
         pnl_label = ttk.Label(stats_frame, text="P/L: --", font=("Arial", 9))
-        pnl_label.pack(side=tk.LEFT, padx=10)
+        pnl_label.pack(side=tk.LEFT, padx=3)
         
         trades_label = ttk.Label(stats_frame, text="Trades: 0", font=("Arial", 9))
-        trades_label.pack(side=tk.LEFT, padx=10)
+        trades_label.pack(side=tk.LEFT, padx=3)
+        
+        open_label = ttk.Label(stats_frame, text="Open: --", font=("Arial", 9, "bold"), foreground="green")
+        open_label.pack(side=tk.LEFT, padx=3)
+        
+        close_label = ttk.Label(stats_frame, text="Close: --", font=("Arial", 9), foreground="red")
+        close_label.pack(side=tk.LEFT, padx=3)
+        
+        range_status_label = ttk.Label(stats_frame, text="Range: --", font=("Arial", 9), foreground="blue")
+        range_status_label.pack(side=tk.LEFT, padx=3)
+        
+        range_level_label = ttk.Label(stats_frame, text="--", font=("Arial", 8))
+        range_level_label.pack(side=tk.LEFT, padx=3)
         
         self.stat_labels[symbol] = {
             'price': price_label,
             'pnl': pnl_label,
-            'trades': trades_label
+            'trades': trades_label,
+            'open': open_label,
+            'close': close_label,
+            'range_status': range_status_label,
+            'range_level': range_level_label
         }
         
         # Chart frame
         chart_subframe = ttk.Frame(frame)
         chart_subframe.pack(fill=tk.BOTH, expand=True)
         
-        # Create figure
+        # Create figure without title
         fig = Figure(figsize=(6, 4), dpi=100)
         ax = fig.add_subplot(111)
-        ax.set_title(f"{symbol} Price Chart")
         ax.set_xlabel("Time (Events)")
         ax.set_ylabel("Price ($)")
         ax.grid(True, alpha=0.3)
@@ -426,23 +471,24 @@ class MultiSymbolDashboard:
                 print(f"[update_ui] Processing {symbol}...")
                 self._process_symbol_tick(symbol, snapshot)
                 
-                # Calculate metrics
+                # Calculate metrics - sum up all symbols' P/L and trades
                 strategy = self.strategy_manager.get_strategy(symbol)
                 if strategy:
                     metrics = strategy.metrics
+                    # Accumulate P/L and trades from this symbol's strategy
                     total_pnl += metrics.total_pnl
                     total_trades += metrics.total_trades
                     # Check if symbol has open position
                     if symbol in strategy.current_positions:
                         open_positions += 1
             
-            # Update global stats
+            # Update global stats with calculated totals from all symbols' local strategies
             pnl_color = "green" if total_pnl >= 0 else "red"
-            self.global_pnl_label.config(text=f"Total P/L: ${total_pnl:+.2f}")
+            self.global_pnl_label.config(text=f"Total P/L: ${total_pnl:+.2f}", foreground=pnl_color)
             self.global_trades_label.config(text=f"Trades: {total_trades}")
             self.open_positions_label.config(text=f"Open Positions: {open_positions}/{len(self.symbols)}")
             
-            print(f"[update_ui] DONE - Total P/L: ${total_pnl:+.2f}, Trades: {total_trades}\n")
+            print(f"[update_ui] DONE - Total P/L: ${total_pnl:+.2f}, Trades: {total_trades}, Open Positions: {open_positions}\n")
         
         except Exception as e:
             print(f"[ERROR] update_ui: {e}")
@@ -502,9 +548,32 @@ class MultiSymbolDashboard:
             # Handle trade signals
             if event.get("action") == "OPEN":
                 trade = event.get("trade")
-                if trade:
+                if trade and hasattr(trade, 'entry_price') and trade.entry_price is not None:
                     self.trade_counters[symbol] += 1
                     print(f"[_process_symbol_tick] {symbol}: OPEN signal - trade #{self.trade_counters[symbol]}")
+                    
+                    # Cache the entry price for this symbol and clear previous close price
+                    entry_price = trade.entry_price
+                    self.open_prices[symbol] = entry_price
+                    self.close_prices[symbol] = None  # Clear previous close price when new position opens
+                    print(f"[_process_symbol_tick] {symbol}: Set open_prices[{symbol}] = ${entry_price:.2f}, cleared close_prices")
+                    
+                    # Update UI Open label with thread-safe call
+                    def update_open_label(ep=entry_price, sym=symbol):
+                        try:
+                            label_text = f"Open: ${ep:.2f}"
+                            print(f"[update_open_label] Updating {sym} Open label to: {label_text}")
+                            self.stat_labels[sym]['open'].config(text=label_text, foreground="green")
+                            # Clear the Close label when new position opens
+                            self.stat_labels[sym]['close'].config(text="Close: --")
+                            print(f"[update_open_label] ✅ Updated Open label for {sym} to: {label_text}, cleared Close")
+                        except Exception as e:
+                            print(f"[update_open_label] ERROR: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    
+                    self.root.after(0, update_open_label)
+                    
                     if trade.direction == "LONG":
                         self.buy_signals[symbol].append((self.tick_counts[symbol]-1, price, self.trade_counters[symbol]))
                         
@@ -522,8 +591,32 @@ class MultiSymbolDashboard:
             
             if event.get("action") == "CLOSE":
                 trade = event.get("trade")
-                if trade:
+                if trade and hasattr(trade, 'exit_price') and trade.exit_price is not None:
                     print(f"[_process_symbol_tick] {symbol}: CLOSE signal - P/L: ${trade.pnl:.3f}")
+                    
+                    # Cache the close price (exit price) for this symbol
+                    exit_price = trade.exit_price
+                    entry_price = trade.entry_price
+                    self.close_prices[symbol] = exit_price
+                    print(f"[_process_symbol_tick] {symbol}: Set close_prices[{symbol}] = ${exit_price:.2f}")
+                    
+                    # Update UI labels with thread-safe call - show both Open and Close prices
+                    def update_close_labels(exit_p=exit_price, ep=entry_price, sym=symbol):
+                        try:
+                            print(f"[update_close_labels] Updating {sym} Close label")
+                            self.stat_labels[sym]['close'].config(text=f"Close: ${exit_p:.2f}", foreground="red")
+                            print(f"[update_close_labels] Close label updated to: Close: ${exit_p:.2f}")
+                            # Keep showing the open price (cached) - don't clear it
+                            self.stat_labels[sym]['open'].config(text=f"Open: ${ep:.2f}", foreground="green")
+                            print(f"[update_close_labels] Open label kept at: Open: ${ep:.2f}")
+                            print(f"  ✅ Updated Close label for {sym} to: ${exit_p:.2f}, Open cached: ${ep:.2f}")
+                        except Exception as e:
+                            print(f"[update_close_labels] ERROR: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    
+                    self.root.after(0, update_close_labels)
+                    
                     trade_id = self.trade_counters[symbol]
                     if trade.direction == "LONG":
                         self.buy_close_signals[symbol].append((self.tick_counts[symbol]-1, trade.exit_price, trade_id))
@@ -553,6 +646,96 @@ class MultiSymbolDashboard:
                 self.stat_labels[symbol]['price'].config(text=f"Price: ${price:.2f}")
                 self.stat_labels[symbol]['pnl'].config(text=f"P/L: ${pnl:+.2f}")
                 self.stat_labels[symbol]['trades'].config(text=f"Trades: {metrics.total_trades}")
+                # Update range information
+                if hasattr(strategy, 'opening_range'):
+                    print(f"[update_ui] {symbol}: strategy.opening_range exists, keys={list(strategy.opening_range.keys())}")
+                    if symbol in strategy.opening_range:
+                        or_data = strategy.opening_range[symbol]
+                        phase = or_data.get("phase", "N/A")
+                        
+                        if phase == "BUILDING":
+                            ticks = or_data.get("ticks", 0)
+                            total_ticks = strategy.opening_range_ticks
+                            build_pct = (ticks / total_ticks * 100) if total_ticks > 0 else 0
+                            range_low = or_data.get("low", 0)
+                            range_high = or_data.get("high", 0)
+                            
+                            print(f"[update_ui] 🏗️  {symbol} BUILDING: {ticks}/{total_ticks} ticks ({build_pct:.0f}%) | Range: ${range_low:.4f}-${range_high:.4f}")
+                            print(f"[update_ui] {symbol} DEBUG: or_data keys = {or_data.keys()}, initialized={or_data.get('initialized')}")
+                            
+                            self.stat_labels[symbol]['range_status'].config(
+                                text=f"Building ({ticks}/{total_ticks})",
+                                foreground="orange"
+                            )
+                            self.stat_labels[symbol]['range_level'].config(
+                                text=f"${range_low:.4f} - ${range_high:.4f} ({build_pct:.0f}%)"
+                            )
+                        
+                        elif phase == "LOCKED":
+                            range_low = or_data.get("low", 0)
+                            range_high = or_data.get("high", 0)
+                            position_locked = or_data.get("position_locked", False)
+                            validity_expires = or_data.get("validity_expires_at", 0)
+                            
+                            import time as time_module
+                            now = time_module.time()
+                            time_left = max(0, validity_expires - now)
+                            
+                            print(f"[update_ui] 🔒 {symbol} LOCKED: ${range_low:.4f}-${range_high:.4f} | position_locked={position_locked}, time_left={time_left:.0f}s")
+                            
+                            if position_locked:
+                                status_text = "LOCKED (Position Open)"
+                                color = "purple"
+                            else:
+                                mins_left = time_left / 60
+                                status_text = f"LOCKED ({mins_left:.1f}m)"
+                                color = "green" if time_left > 300 else "orange" if time_left > 60 else "red"
+                            
+                            self.stat_labels[symbol]['range_status'].config(
+                                text=status_text,
+                                foreground=color
+                            )
+                            self.stat_labels[symbol]['range_level'].config(
+                                text=f"${range_low:.4f} - ${range_high:.4f}"
+                            )
+                        else:
+                            print(f"[update_ui] ❌ {symbol} Phase N/A or unknown: {phase}")
+                            self.stat_labels[symbol]['range_status'].config(text="Range: --", foreground="gray")
+                            self.stat_labels[symbol]['range_level'].config(text="--")
+                    else:
+                        print(f"[update_ui] {symbol}: NOT in strategy.opening_range")
+                else:
+                    print(f"[update_ui] {symbol}: strategy.opening_range attribute does NOT exist!")
+                
+                # Update open/close prices (same pattern as range - read directly from strategy)
+                if symbol in strategy.current_positions:
+                    trade = strategy.current_positions[symbol]
+                    entry_price = trade.entry_price
+                    self.open_prices[symbol] = entry_price
+                    self.stat_labels[symbol]['open'].config(
+                        text=f"Open: ${entry_price:.2f}",
+                        foreground="green"
+                    )
+                    print(f"[_process_symbol_tick] {symbol}: Open position at ${entry_price:.2f}")
+                else:
+                    # Position closed - keep showing last trade's entry price during BUILDING phase
+                    # Only clear if we have no cached value (truly no recent trades)
+                    if self.open_prices[symbol] is not None:
+                        # Keep showing cached entry price - it persists until next trade opens
+                        print(f"[_process_symbol_tick] {symbol}: Position closed, keeping cached Open: ${self.open_prices[symbol]:.2f}")
+                    else:
+                        # No cached value - show empty
+                        self.stat_labels[symbol]['open'].config(text="Open: --")
+                
+                # Update close price if available (cached from last closed trade)
+                if self.close_prices[symbol] is not None:
+                    self.stat_labels[symbol]['close'].config(
+                        text=f"Close: ${self.close_prices[symbol]:.2f}",
+                        foreground="red"
+                    )
+                    print(f"[_process_symbol_tick] {symbol}: Showing cached Close: ${self.close_prices[symbol]:.2f}")
+                else:
+                    self.stat_labels[symbol]['close'].config(text="Close: --")
             
             # Update chart
             print(f"[_process_symbol_tick] {symbol}: Updating chart (prices count: {len(self.prices[symbol])})")
@@ -622,7 +805,8 @@ class MultiSymbolDashboard:
                     async for message in websocket:
                         try:
                             data = json.loads(message)
-                            print(f"[WebSocket] Received message with keys: {list(data.keys())}")
+                            msg_keys = list(data.keys())
+                            print(f"[WebSocket] Received message with keys: {msg_keys}")
                             
                             # Handle symbol data (regular snapshots)
                             if "symbols" in data:
@@ -635,11 +819,15 @@ class MultiSymbolDashboard:
                                 action = data.get("action")  # "OPEN" or "CLOSE"
                                 reason = data.get("reason")
                                 price = data.get("price")
-                                print(f"[WebSocket] Trade event: {symbol} {action} @ ${price} ({reason})")
+                                print(f"[WebSocket] ✅ Trade event received: {symbol} {action} @ ${price} ({reason})")
+                                print(f"[WebSocket] Full event: {data}")
                                 self.root.after(0, lambda d=data: self.handle_trade_event(d))
                             
                             else:
-                                print(f"[WebSocket] Message does not have 'symbols' or 'type' key: {list(data.keys())}")
+                                print(f"[WebSocket] ⚠️ Message doesn't match patterns. Keys: {msg_keys}")
+                                if data.get("action"):
+                                    print(f"[WebSocket] Message has 'action' field: {data.get('action')} - might be a trade event missing type!")
+                        
                         except json.JSONDecodeError as e:
                             print(f"[WebSocket] JSON decode error: {e}")
                         except Exception as e:
@@ -678,6 +866,8 @@ class MultiSymbolDashboard:
                 return
             
             print(f"[handle_trade_event] {symbol}: {action} @ ${price:.2f} ({reason})")
+            print(f"[handle_trade_event] Trade data: {trade_data}")
+            print(f"[handle_trade_event] Event keys: {list(event.keys())}")
             
             # Get current tick count
             current_tick_idx = len(self.prices[symbol]) - 1
@@ -686,24 +876,92 @@ class MultiSymbolDashboard:
                 # Log the open trade signal
                 direction = trade_data.get("direction", "UNKNOWN")
                 entry_price = trade_data.get("entry_price", price)
+                
+                # Ensure entry_price is a valid number
+                if entry_price is None:
+                    entry_price = price
+                
                 print(f"  → Opening {direction} position at ${entry_price:.2f}")
+                print(f"  → Direction: {direction}, Entry Price: {entry_price}, Type: {type(entry_price)}")
+                
+                # Track open price for this symbol
+                self.open_prices[symbol] = entry_price
+                self.close_prices[symbol] = None  # Clear previous close price
+                
+                # Debug: Check if symbol is in stat_labels
+                if symbol not in self.stat_labels:
+                    print(f"  ❌ ERROR: {symbol} not in stat_labels!")
+                    print(f"     Available symbols: {list(self.stat_labels.keys())}")
+                    return
+                
+                # Debug: Check if 'open' key exists
+                if 'open' not in self.stat_labels[symbol]:
+                    print(f"  ❌ ERROR: 'open' key not in stat_labels[{symbol}]!")
+                    print(f"     Available keys: {list(self.stat_labels[symbol].keys())}")
+                    return
+                
+                # Update UI label with thread-safe call - pass entry_price directly to avoid closure issues
+                def update_open_label(ep=entry_price, sym=symbol):
+                    try:
+                        label_text = f"Open: ${ep:.2f}"
+                        print(f"  [update_open_label] Setting text to: {label_text} for {sym}")
+                        self.stat_labels[sym]['open'].config(text=label_text, foreground="green")
+                        # Cache the entry price for persistence during BUILDING phase
+                        self.open_prices[sym] = ep
+                        print(f"  ✅ Updated Open label for {sym} to: {label_text} (cached)")
+                    except Exception as e:
+                        print(f"  ❌ Error updating Open label for {sym}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                self.root.after(0, update_open_label)
                 
                 # Add to appropriate signals list (buy/sell based on direction)
                 if direction == "LONG":
-                    self.buy_signals[symbol].append((current_tick_idx, price))
+                    self.buy_signals[symbol].append((current_tick_idx, price, self.trade_counters[symbol]))
                     print(f"  → Added to buy signals at tick {current_tick_idx}")
                 elif direction == "SHORT":
-                    self.sell_signals[symbol].append((current_tick_idx, price))
+                    self.sell_signals[symbol].append((current_tick_idx, price, self.trade_counters[symbol]))
                     print(f"  → Added to sell signals at tick {current_tick_idx}")
             
             elif action == "CLOSE":
                 # Log the close trade signal
+                print(f"[handle_trade_event] CLOSE action detected for {symbol}")
                 entry_price = trade_data.get("entry_price", 0)
                 pnl = trade_data.get("pnl", 0)
-                print(f"  → Closing position | Entry: ${entry_price:.2f} Exit: ${price:.2f} PnL: {pnl:+.2f}%")
+                print(f"[handle_trade_event] Entry: ${entry_price:.2f}, Exit: ${price:.2f}, PnL: {pnl:+.2f}%")
+                
+                # Track close price for this symbol
+                self.close_prices[symbol] = price
+                print(f"[handle_trade_event] Set close_prices[{symbol}] = ${price:.2f}")
+                # DO NOT clear open_prices - keep it cached to show during BUILDING phase
+                
+                # Update UI labels with thread-safe calls - pass values directly to avoid closure issues
+                def update_close_labels(exit_p=price, sym=symbol, ep=entry_price):
+                    try:
+                        print(f"[update_close_labels] START: Updating {sym} Close label")
+                        self.stat_labels[sym]['close'].config(text=f"Close: ${exit_p:.2f}", foreground="red")
+                        print(f"[update_close_labels] Close label updated to: Close: ${exit_p:.2f}")
+                        # Keep showing the open price (cached) - don't clear it
+                        self.stat_labels[sym]['open'].config(text=f"Open: ${ep:.2f}", foreground="green")
+                        print(f"[update_close_labels] Open label updated to: Open: ${ep:.2f}")
+                        print(f"  ✅ Updated Close label for {sym} to: ${exit_p:.2f}, Open cached: ${ep:.2f}")
+                    except Exception as e:
+                        print(f"[update_close_labels] ERROR: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                print(f"[handle_trade_event] Scheduling update_close_labels via root.after(0)")
+                self.root.after(0, update_close_labels)
+                print(f"[handle_trade_event] Scheduled. Continuing to track close signals...")
+                
+                self.root.after(0, update_close_labels)
+                
+                # Track trades and P/L
+                self.total_trades += 1
+                self.total_pnl += pnl
                 
                 # Determine if this was a long or short close based on reason
-                # Could also check trade_data["direction"]
                 direction = trade_data.get("direction", "UNKNOWN")
                 
                 # Add to appropriate close signals list
@@ -713,6 +971,19 @@ class MultiSymbolDashboard:
                 elif direction == "SHORT":
                     self.sell_close_signals[symbol].append((current_tick_idx, price, 0))
                     print(f"  → Added to sell close signals at tick {current_tick_idx}")
+                
+                # Update global stats (thread-safe via root.after)
+                pnl_color = "green" if self.total_pnl >= 0 else "red"
+                
+                def update_global_stats():
+                    try:
+                        self.global_pnl_label.config(text=f"Total P/L: ${self.total_pnl:+.2f}", foreground=pnl_color)
+                        self.global_trades_label.config(text=f"Trades: {self.total_trades}")
+                        print(f"  ✅ Updated global stats: Trades={self.total_trades}, P/L=${self.total_pnl:+.2f}")
+                    except Exception as e:
+                        print(f"  ❌ Error updating global stats: {e}")
+                
+                self.root.after(0, update_global_stats)
             
             # Force chart update to show the new signals
             print(f"[handle_trade_event] Updating chart for {symbol}")

@@ -31,6 +31,11 @@ SYMBOLS = ["QQQ", "SPY", "NVDA", "AAPL", "MSFT"]  # Real, liquid symbols
 DAYS_BACK = 7
 INTERVAL = "1m"  # 1-minute bars
 
+# Historical data file - configurable via environment variable
+# When FAKE_TICKS=true, load data from the file specified in HISTORICAL_DATA_FILE env var
+_data_filename = os.getenv("HISTORICAL_DATA_FILE", "historical_data.json")
+DEFAULT_DATA_FILE = f"data/{_data_filename}"
+
 # Global state
 connected_clients: set = set()
 playback_speed = 1.0  # 1.0 = real-time (1 bar per second), higher = faster
@@ -38,8 +43,11 @@ playback_speed = 1.0  # 1.0 = real-time (1 bar per second), higher = faster
 class HistoricalDataServer:
     """Serves historical data to WebSocket clients"""
     
-    def __init__(self, symbols: list, days_back: int = 7, data_file: str = "data/historical_data.json"):
+    def __init__(self, symbols: list, days_back: int = 7, data_file: str = None):
         self.symbols = symbols
+        # Use environment variable if not explicitly provided
+        if data_file is None:
+            data_file = DEFAULT_DATA_FILE
         self.data_file = Path(data_file)
         self.bars = []
         self.bar_iterator = None
@@ -47,7 +55,6 @@ class HistoricalDataServer:
         self.subscriptions = {}  # Track symbol subscriptions per client
         self.playback_task = None
         self.is_running = False
-        
     async def initialize(self) -> bool:
         """Load pre-downloaded data from JSON file"""
         logger.info("Initializing historical data server...")
@@ -152,22 +159,50 @@ class HistoricalDataServer:
             async for message in websocket:
                 try:
                     msg = json.loads(message)
-                    action = msg.get('action', '').lower()
+                    logger.debug(f"[{client_id}] Received message: {msg}")
+                    
+                    # Handle both subscription formats:
+                    # Format 1: {"action": "subscribe", "params": "A.QQQ"}
+                    # Format 2: {"type": "subscribe", "symbol": "QQQ"}
+                    action = msg.get('action', '').lower() or msg.get('type', '').lower()
                     
                     if action == 'subscribe':
+                        # Try format 1 first (Polygon-style with "A." prefix)
                         params = msg.get('params', '')
-                        # Extract symbol from params like "A.QQQ"
+                        symbol = None
+                        
                         if params.startswith('A.'):
                             symbol = params[2:]
+                            logger.debug(f"[{client_id}] Parsed format 1 subscription: {symbol}")
+                        # Try format 2 (direct symbol)
+                        elif not params:
+                            symbol = msg.get('symbol', '').upper()
+                            if symbol:
+                                logger.debug(f"[{client_id}] Parsed format 2 subscription: {symbol}")
+                        
+                        if symbol:
                             self.subscriptions[websocket].add(symbol)
-                            logger.info(f"  {client_id} subscribed to {symbol}")
+                            logger.info(f"[{client_id}] ✅ Subscribed to {symbol}. Now subscribed to: {self.subscriptions[websocket]}")
+                        else:
+                            logger.warning(f"[{client_id}] ⚠️  Subscription message received but no symbol extracted: {msg}")
                         
                     elif action == 'unsubscribe':
+                        # Try format 1 first (Polygon-style with "A." prefix)
                         params = msg.get('params', '')
+                        symbol = None
+                        
                         if params.startswith('A.'):
                             symbol = params[2:]
+                        # Try format 2 (direct symbol)
+                        elif not params:
+                            symbol = msg.get('symbol', '').upper()
+                        
+                        if symbol:
                             self.subscriptions[websocket].discard(symbol)
-                            logger.info(f"  {client_id} unsubscribed from {symbol}")
+                            logger.info(f"[{client_id}] ✅ Unsubscribed from {symbol}")
+                    else:
+                        if msg:
+                            logger.debug(f"[{client_id}] Unknown message type: {action}, full message: {msg}")
                     
                 except json.JSONDecodeError:
                     logger.warning(f"Invalid JSON from {client_id}: {message}")
