@@ -1532,6 +1532,9 @@ class MicroTradingStrategy:
     
     def get_current_metrics(self) -> dict:
         """Return current strategy metrics"""
+        # NEW: Count total open positions across all symbols
+        total_open_positions = sum(len(positions) for positions in self.current_positions.values())
+        
         return {
             "total_ticks": self.metrics.total_ticks,
             "total_trades": self.metrics.total_trades,
@@ -1544,5 +1547,5 @@ class MicroTradingStrategy:
             "max_drawdown": self.metrics.max_drawdown,
             "current_drawdown": self.metrics.current_drawdown,
             "consecutive_losses": self.metrics.consecutive_losses,
-            "open_positions": len(self.current_positions),
+            "open_positions": total_open_positions,  # NEW: Total across all symbols
         }

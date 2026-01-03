@@ -318,3 +318,5 @@ DEBUG: Starting asyncio event loop...
 2026-01-03 18:21:50,013 [INFO] 📊 Processed 3100 ticks, 15 trades
 2026-01-03 18:21:51,016 [INFO] 📈 Tick #3100: DVLT @ $1.08
 2026-01-03 18:22:00,032 [WARNING] 🏗️  [UAVS] BUILDING (10/60 ticks, 17%): $1.2150 - $1.2200
+2026-01-03 18:22:41,096 [INFO] 📈 Tick #3150: UAVS @ $1.22
+2026-01-03 18:22:57,122 [WARNING] 🏗️  [UAVS] BUILDING (20/60 ticks, 33%): $1.2100 - $1.2200
