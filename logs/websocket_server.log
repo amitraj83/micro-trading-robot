@@ -3605,3 +3605,230 @@ RuntimeError: Set changed size during iteration
 2026-01-03 18:18:47,651 [INFO] 📡 Broadcasted 4 symbols to 1 clients
 2026-01-03 18:18:48,657 [INFO] 📡 Broadcasted 4 symbols to 1 clients
 2026-01-03 18:18:49,659 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:18:50,661 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:18:51,661 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:18:52,663 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:18:53,668 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:18:54,670 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:18:55,675 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:18:56,679 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:18:57,680 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:18:58,682 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:18:59,684 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:00,686 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:01,689 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:02,691 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:03,693 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:04,697 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:05,701 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:06,701 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:07,703 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:08,708 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:09,712 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:10,716 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:11,721 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:12,722 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:13,725 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:14,727 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:15,729 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:16,731 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:17,733 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:18,415 [INFO] 📈 Tick #2950: UAVS @ $1.22
+2026-01-03 18:19:18,736 [INFO] Cycling GPUS bars (restarted from beginning)
+2026-01-03 18:19:18,740 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:19,745 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:20,747 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:21,782 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:22,783 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:23,787 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:24,788 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:25,790 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:26,791 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:27,795 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:28,797 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:29,800 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:30,804 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:31,806 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:32,809 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:33,812 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:34,814 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:35,815 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:36,818 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:37,820 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:38,822 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:39,824 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:40,827 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:41,829 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:42,831 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:43,833 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:44,835 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:45,839 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:46,842 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:47,845 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:48,847 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:49,848 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:50,912 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:51,913 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:52,914 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:53,916 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:54,918 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:55,920 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:56,921 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:57,923 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:58,925 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:19:59,926 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:00,929 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:01,931 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:02,935 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:03,936 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:04,939 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:05,942 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:06,943 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:07,638 [INFO] 📊 Processed 3000 ticks, 15 trades
+2026-01-03 18:20:07,945 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:08,641 [INFO] 📈 Tick #3000: UAVS @ $1.21
+2026-01-03 18:20:08,946 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:09,947 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:10,949 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:11,954 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:12,955 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:13,957 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:14,959 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:15,963 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:16,965 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:17,967 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:18,969 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:19,971 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:20,975 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:21,978 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:22,980 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:23,982 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:24,986 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:25,987 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:26,989 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:27,990 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:28,993 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:29,995 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:30,997 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:31,999 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:33,003 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:34,005 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:35,007 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:36,009 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:37,009 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:38,010 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:39,012 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:40,051 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:41,052 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:42,054 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:43,056 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:44,058 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:45,060 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:46,062 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:47,064 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:48,068 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:49,070 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:50,072 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:51,075 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:52,077 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:53,078 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:54,079 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:55,081 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:56,085 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:57,086 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:58,088 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:20:58,806 [INFO] 📈 Tick #3050: BNAI @ $3.76
+2026-01-03 18:20:59,093 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:21:00,096 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:21:00,828 [INFO] connection open
+2026-01-03 18:21:00,828 [INFO] Client connected: ::1:55899
+2026-01-03 18:21:00,831 [INFO] 📨 Received trade event from bot: CLOSE for BNAI
+2026-01-03 18:21:00,831 [INFO] 📢 Notifying 1 dashboard clients of CLOSE for BNAI
+2026-01-03 18:21:00,831 [INFO] ✅ Sent CLOSE event to client
+2026-01-03 18:21:01,097 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:02,101 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:03,105 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:04,112 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:05,116 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:06,119 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:07,123 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:08,126 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:09,132 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:10,135 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:11,176 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:11,928 [INFO] [UAVS] Range validity expired at 18:21:11. Resetting to Phase 1 (BUILD)
+2026-01-03 18:21:12,181 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:13,182 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:14,186 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:15,188 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:16,191 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:17,195 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:18,198 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:19,202 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:20,204 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:21,206 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:22,209 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:23,211 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:24,215 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:25,217 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:26,220 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:27,224 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:28,225 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:29,231 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:30,234 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:31,236 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:32,239 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:33,242 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:34,244 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:35,248 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:36,252 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:37,255 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:38,257 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:39,259 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:40,260 [INFO] 📡 Broadcasted 4 symbols to 2 clients
+2026-01-03 18:21:48,008 [INFO] 📊 Processed 3100 ticks, 15 trades
+2026-01-03 18:21:49,010 [INFO] 📈 Tick #3100: DVLT @ $1.09
+2026-01-03 18:21:50,880 [INFO] Client disconnected: ::1:55899
+2026-01-03 18:21:50,881 [ERROR] Historical streaming error: Set changed size during iteration
+Traceback (most recent call last):
+  File "/Users/ara/micro-trading-robot/websocket_server/server.py", line 497, in historical_data_streaming_loop
+    await broadcast_symbols(symbol_updates)
+  File "/Users/ara/micro-trading-robot/websocket_server/server.py", line 290, in broadcast_symbols
+    for client in connected_clients:
+                  ^^^^^^^^^^^^^^^^^
+RuntimeError: Set changed size during iteration
+2026-01-03 18:21:55,893 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:21:56,893 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:21:57,895 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:21:58,897 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:21:59,900 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:00,032 [WARNING] 🏗️  [UAVS] BUILDING (10/60 ticks, 17%): $1.2150 - $1.2200
+2026-01-03 18:22:00,902 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:01,906 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:02,908 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:03,909 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:04,911 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:05,914 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:06,917 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:07,919 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:08,923 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:09,925 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:10,926 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:11,927 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:12,928 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:13,931 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:14,977 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:15,983 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:16,986 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:17,989 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:18,992 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:19,995 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:20,997 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:21,997 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:22,999 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:24,001 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:25,002 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:26,003 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:27,005 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:28,008 [INFO] 📡 Broadcasted 4 symbols to 1 clients
+2026-01-03 18:22:29,011 [INFO] 📡 Broadcasted 4 symbols to 1 clients

@@ -26,6 +26,7 @@ class Trade:
     entry_reason: str  # "MOMENTUM_BURST"
     position_size: float = 1.0
     symbol: str = ""  # Trading symbol (e.g., "AAPL")
+    position_id: int = 0  # NEW: Which range/position pair (1 or 2 for 2-position system)
     
     exit_time: Optional[datetime] = None
     exit_price: Optional[float] = None

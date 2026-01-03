@@ -310,3 +310,11 @@ DEBUG: Starting asyncio event loop...
 2026-01-03 18:17:40,101 [INFO] 📈 Tick #2850: UAVS @ $1.21
 2026-01-03 18:18:29,297 [INFO] 📊 Processed 2900 ticks, 15 trades
 2026-01-03 18:18:30,299 [INFO] 📈 Tick #2900: GPUS @ $0.29
+2026-01-03 18:19:20,476 [INFO] 📈 Tick #2950: DVLT @ $1.08
+2026-01-03 18:20:09,643 [INFO] 📊 Processed 3000 ticks, 15 trades
+2026-01-03 18:20:10,645 [INFO] 📈 Tick #3000: BNAI @ $3.91
+2026-01-03 18:21:00,808 [INFO] 📈 Tick #3050: BNAI @ $3.75
+2026-01-03 18:21:11,928 [INFO] [UAVS] Range validity expired at 18:21:11. Resetting to Phase 1 (BUILD)
+2026-01-03 18:21:50,013 [INFO] 📊 Processed 3100 ticks, 15 trades
+2026-01-03 18:21:51,016 [INFO] 📈 Tick #3100: DVLT @ $1.08
+2026-01-03 18:22:00,032 [WARNING] 🏗️  [UAVS] BUILDING (10/60 ticks, 17%): $1.2150 - $1.2200
