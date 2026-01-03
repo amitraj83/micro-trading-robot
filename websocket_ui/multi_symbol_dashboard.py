@@ -707,30 +707,22 @@ class MultiSymbolDashboard:
                 else:
                     print(f"[update_ui] {symbol}: strategy.opening_range attribute does NOT exist!")
                 
-                # Update open/close prices (NEW: handle multiple positions)
-                if symbol in strategy.current_positions and len(strategy.current_positions[symbol]) > 0:
-                    # Show info for all open positions
-                    positions_info = []
-                    for pos in strategy.current_positions[symbol]:
-                        positions_info.append(f"Pos#{pos.position_id}: ${pos.entry_price:.2f}")
-                    
-                    # Use the first position for main display
-                    first_pos = strategy.current_positions[symbol][0]
-                    entry_price = first_pos.entry_price
+                # Update open/close prices (same pattern as range - read directly from strategy)
+                if symbol in strategy.current_positions:
+                    trade = strategy.current_positions[symbol]
+                    entry_price = trade.entry_price
                     self.open_prices[symbol] = entry_price
-                    
-                    positions_text = " | ".join(positions_info)
                     self.stat_labels[symbol]['open'].config(
-                        text=f"Open: {positions_text}",
+                        text=f"Open: ${entry_price:.2f}",
                         foreground="green"
                     )
-                    print(f"[_process_symbol_tick] {symbol}: {len(strategy.current_positions[symbol])} open position(s)")
+                    print(f"[_process_symbol_tick] {symbol}: Open position at ${entry_price:.2f}")
                 else:
                     # Position closed - keep showing last trade's entry price during BUILDING phase
                     # Only clear if we have no cached value (truly no recent trades)
                     if self.open_prices[symbol] is not None:
                         # Keep showing cached entry price - it persists until next trade opens
-                        print(f"[_process_symbol_tick] {symbol}: Positions closed, keeping cached Open: ${self.open_prices[symbol]:.2f}")
+                        print(f"[_process_symbol_tick] {symbol}: Position closed, keeping cached Open: ${self.open_prices[symbol]:.2f}")
                     else:
                         # No cached value - show empty
                         self.stat_labels[symbol]['open'].config(text="Open: --")

@@ -100,10 +100,6 @@ STRATEGY_CONFIG = {
     "opening_range_ticks": OPENING_RANGE_TICKS,  # Number of ticks for opening range (5 min test, 30 min prod)
     "opening_range_validity_minutes": RANGE_VALID_DURATION_MINUTES,  # How long locked range stays valid
     
-    # Multi-position strategy (NEW)
-    "max_positions_per_symbol": 2,  # Allow up to 2 open positions per symbol
-    "position_entry_gap_minutes": 10,  # Wait 10 minutes between Position #1 and Position #2 entries
-    
     # Range-based entry/exit thresholds
     "range_lookback_max_ticks": RANGE_LOOKBACK_MAX_TICKS,  # 1-hour max (3600 ticks at 1sec interval)
     "range_lookback_min_ticks": RANGE_LOOKBACK_MIN_TICKS,  # 5-minute min (300 ticks at 1sec interval)

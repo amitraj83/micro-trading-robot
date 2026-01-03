@@ -42,7 +42,7 @@ class MicroTradingStrategy:
         # Per-symbol tick buffers (EMA/volatility on ticks, no bars)
         self.tick_buffers: dict = {}
         
-        self.current_positions: dict = {}  # {symbol: [Trade, Trade]} - NEW: list of up to 2 positions per symbol
+        self.current_positions: dict = {}  # {symbol: Trade} - one position per symbol
         self.closed_trades: list = []
         self.metrics = StrategyMetrics()
         self.last_entry_time = None
@@ -74,15 +74,11 @@ class MicroTradingStrategy:
         self.last_entry_zone: dict = {}  # {symbol: price_zone} to avoid re-triggering
 
         # Track opening range per symbol (for fixed window strategy)
-        # NEW: Now stores list of ranges (up to 2) for multi-position system
-        self.opening_range: dict = {}  # {symbol: [{range1}, {range2}]} - list of ranges per symbol
+        # Now includes two-phase system: BUILD (N min) -> LOCK (15 min validity)
+        self.opening_range: dict = {}  # {symbol: {high, low, ticks, initialized, build_start_time, lock_time, validity_expires_at, position_locked}}
         self.opening_range_ticks = STRATEGY_CONFIG.get("opening_range_ticks", 300)  # 5 min default
         self.opening_range_validity_minutes = STRATEGY_CONFIG.get("opening_range_validity_minutes", 15)  # Range stays locked duration (configurable)
         self.use_opening_range = STRATEGY_CONFIG.get("use_opening_range", True)
-        
-        # NEW: Track last position entry time per symbol for 10-minute gap enforcement
-        self.last_position_entry_time: dict = {}  # {symbol: timestamp} - when was last position entered
-        self.position_entry_gap_seconds = STRATEGY_CONFIG.get("position_entry_gap_minutes", 10) * 60  # Convert to seconds
 
         # Warmup requirement measured in ticks (not bars)
         self.warmup_ticks = STRATEGY_CONFIG.get("warmup_ticks", 50)
@@ -457,103 +453,112 @@ class MicroTradingStrategy:
         if current_price is None:
             return None, calc_debug
         
-        # ===== OPENING RANGE STRATEGY (MULTI-RANGE SYSTEM) - INITIALIZE EARLY =====
-        # NEW: Support up to 2 ranges per symbol for multi-position trading
+        # ===== OPENING RANGE STRATEGY (TWO-PHASE SYSTEM) - INITIALIZE EARLY =====
+        # Initialize opening range on FIRST tick, BEFORE min_lookback check
+        # This allows range to build immediately even if buffer hasn't reached min_lookback yet
         if self.use_opening_range:
             now = time.time()
             
-            # Initialize ranges list if symbol is new
+            # Initialize opening range on first tick
             if symbol not in self.opening_range:
-                self.opening_range[symbol] = []
-                self.last_position_entry_time[symbol] = None
-            
-            # If no ranges exist, start Range #1
-            if len(self.opening_range[symbol]) == 0:
-                new_range = {
+                self.opening_range[symbol] = {
                     "high": current_price,
                     "low": current_price,
                     "ticks": 1,
-                    "range_id": 1,
                     "initialized": False,
                     "build_start_time": now,
                     "lock_time": None,
                     "validity_expires_at": None,
                     "position_locked": False,
-                    "entry_time": None,
                     "phase": "BUILDING"
                 }
-                self.opening_range[symbol].append(new_range)
-                logger.warning(f"🏗️  [{symbol}] Range #1 STARTED BUILDING at {datetime.fromtimestamp(now).strftime('%H:%M:%S')}")
+                if symbol in ["SPY", "QQQ"]:
+                    print(f"[check_entry_signals] 🏗️  {symbol} NEW BUILDING RANGE CREATED (ticks=1) at {datetime.fromtimestamp(now).strftime('%H:%M:%S')}")
+                logger.warning(f"🏗️  [{symbol}] NEW BUILDING RANGE CREATED (ticks=1) at {datetime.fromtimestamp(now).strftime('%H:%M:%S')}")
         
         # Now check if we have enough data for entry signals
         if len(prices) < calc_debug["min_lookback"]:
             return None, calc_debug
         
-        # ===== CONTINUE MULTI-RANGE PROCESSING NOW THAT WE HAVE ENOUGH DATA =====
+        # ===== CONTINUE RANGE PROCESSING NOW THAT WE HAVE ENOUGH DATA =====
         if self.use_opening_range:
             now = time.time()
+            or_data = self.opening_range[symbol]
             
-            # Update all existing ranges
-            for range_idx, range_obj in enumerate(self.opening_range[symbol]):
+            # Debug logging for SPY/QQQ
+            if symbol in ["SPY", "QQQ"]:
+                print(f"[check_entry_signals] {symbol} opening_range state: phase={or_data.get('phase')}, ticks={or_data.get('ticks')}, initialized={or_data.get('initialized')}")
+            
+            # ===== CHECK IF RANGE NEEDS TO RESET =====
+            # Conditions for reset:
+            # 1. Validity window expired (15 min from lock_time) AND no open position
+            # 2. Position just closed - reset immediately to Phase 1
+            if or_data.get("validity_expires_at") is not None:
+                if now >= or_data["validity_expires_at"] and not or_data.get("position_locked"):
+                    # Validity expired, reset to Phase 1
+                    logger.info(
+                        f"[{symbol}] Range validity expired at {datetime.fromtimestamp(now).strftime('%H:%M:%S')}. "
+                        f"Resetting to Phase 1 (BUILD)"
+                    )
+                    self.opening_range[symbol] = {
+                        "high": current_price,
+                        "low": current_price,
+                        "ticks": 1,
+                        "initialized": False,
+                        "build_start_time": now,
+                        "lock_time": None,
+                        "validity_expires_at": None,
+                        "position_locked": False,
+                        "phase": "BUILDING"
+                    }
+                    or_data = self.opening_range[symbol]
+            
+            # ===== PHASE 1: BUILDING =====
+            if not or_data["initialized"]:
+                or_data["ticks"] += 1
+                or_data["high"] = max(or_data["high"], current_price)
+                or_data["low"] = min(or_data["low"], current_price)
                 
-                # ===== CHECK IF RANGE NEEDS TO RESET (validity expiration) =====
-                if range_obj.get("validity_expires_at") is not None:
-                    if now >= range_obj["validity_expires_at"] and not range_obj.get("position_locked"):
-                        # Validity expired, remove this range
-                        logger.info(
-                            f"[{symbol}] Range #{range_obj['range_id']} validity expired. Removing."
-                        )
-                        self.opening_range[symbol].pop(range_idx)
-                        continue  # Skip to next range
+                if symbol in ["SPY", "QQQ"]:
+                    print(f"[check_entry_signals] 🏗️  {symbol} BUILDING ticks incremented: {or_data['ticks']}/{self.opening_range_ticks}")
                 
-                # ===== PHASE 1: BUILDING =====
-                if not range_obj["initialized"]:
-                    range_obj["ticks"] += 1
-                    range_obj["high"] = max(range_obj["high"], current_price)
-                    range_obj["low"] = min(range_obj["low"], current_price)
-                    
-                    # Check if build phase complete
-                    if range_obj["ticks"] >= self.opening_range_ticks:
-                        range_obj["initialized"] = True
-                        range_obj["lock_time"] = now
-                        range_obj["validity_expires_at"] = now + (self.opening_range_validity_minutes * 60)
-                        range_obj["phase"] = "LOCKED"
+                # Check if build phase complete
+                if or_data["ticks"] >= self.opening_range_ticks:
+                    or_data["initialized"] = True
+                    or_data["lock_time"] = now
+                    or_data["validity_expires_at"] = now + (self.opening_range_validity_minutes * 60)
+                    or_data["phase"] = "LOCKED"
+                    logger.warning(
+                        f"✅ [{symbol}] Phase 2 LOCKED after {or_data['ticks']} ticks at {datetime.fromtimestamp(now).strftime('%H:%M:%S')}: "
+                        f"${or_data['low']:.4f} - ${or_data['high']:.4f} "
+                        f"(valid until {datetime.fromtimestamp(or_data['validity_expires_at']).strftime('%H:%M:%S')})"
+                    )
+                else:
+                    # Still building, show progress
+                    build_pct = (or_data["ticks"] / self.opening_range_ticks) * 100
+                    if or_data["ticks"] == 1 or or_data["ticks"] % 10 == 0:  # Log first tick and every 10th
                         logger.warning(
-                            f"✅ [{symbol}] Range #{range_obj['range_id']} LOCKED after {range_obj['ticks']} ticks: "
-                            f"${range_obj['low']:.4f} - ${range_obj['high']:.4f}"
+                            f"🏗️  [{symbol}] BUILDING ({or_data['ticks']}/{self.opening_range_ticks} ticks, {build_pct:.0f}%): "
+                            f"${or_data['low']:.4f} - ${or_data['high']:.4f}"
                         )
-                        
-                        # If Range #1 just locked and we don't have Range #2, create it
-                        if range_obj['range_id'] == 1 and len(self.opening_range[symbol]) < 2:
-                            new_range = {
-                                "high": current_price,
-                                "low": current_price,
-                                "ticks": 1,
-                                "range_id": 2,
-                                "initialized": False,
-                                "build_start_time": now,
-                                "lock_time": None,
-                                "validity_expires_at": None,
-                                "position_locked": False,
-                                "entry_time": None,
-                                "phase": "BUILDING"
-                            }
-                            self.opening_range[symbol].append(new_range)
-                            logger.warning(f"🏗️  [{symbol}] Range #2 STARTED BUILDING")
-        
-        # Determine which range to use for entry signals
-        # Use the first LOCKED range that doesn't have a position yet
-        range_high = None
-        range_low = None
-        active_range_obj = None
-        
-        if self.use_opening_range and symbol in self.opening_range:
-            for range_obj in self.opening_range[symbol]:
-                if range_obj["phase"] == "LOCKED" and not range_obj.get("position_locked"):
-                    active_range_obj = range_obj
-                    range_high = range_obj["high"]
-                    range_low = range_obj["low"]
-                    break  # Use first available locked range
+                    # Don't trade during build phase
+                    return None, calc_debug
+            
+            # ===== PHASE 2: LOCKED & VALID =====
+            if or_data["initialized"]:
+                range_high = or_data["high"]
+                range_low = or_data["low"]
+                
+                # Log validity window status
+                time_left = or_data["validity_expires_at"] - now
+                if time_left > 0 and not or_data.get("position_locked"):
+                    mins_left = time_left / 60
+                    logger.debug(f"[{symbol}] LOCKED range valid for {mins_left:.1f} more min")
+                elif or_data.get("position_locked"):
+                    logger.debug(f"[{symbol}] LOCKED range extended - position open")
+            else:
+                # Still building
+                return None, calc_debug
         else:
             # ===== ROLLING RANGE STRATEGY (original) =====
             # Use up to 900 ticks (15 minutes) or available history, minimum 60 ticks (1 minute)
@@ -563,27 +568,19 @@ class MicroTradingStrategy:
             lookback_prices = prices[-lookback_ticks:]
             range_high = max(lookback_prices)
             range_low = min(lookback_prices)
-        
-        # If no range available, return early
-        if range_high is None or range_low is None:
-            return None, calc_debug
-        
         range_size = range_high - range_low
         
         calc_debug["range_high"] = range_high
         calc_debug["range_low"] = range_low
         calc_debug["range_pct"] = (range_size / range_low * 100) if range_low > 0 else 0
-        if active_range_obj:
-            calc_debug["range_phase"] = f"LOCKED (Range #{active_range_obj.get('range_id')})"
-        else:
-            calc_debug["range_phase"] = "N/A"
+        calc_debug["range_phase"] = self.opening_range[symbol].get("phase", "N/A") if symbol in self.opening_range else "N/A"
         entry_signal = None
         
         if range_size > 0:
             # Calculate where current price sits in the range (0 = low, 1 = high)
             position_in_range = (current_price - range_low) / range_size
             calc_debug["position_in_range"] = position_in_range
-
+            
             # ===== ENTRY LOGIC =====
             # Check if price touched/broke the PREVIOUS range_low (before range updates)
             prev_low = self.prev_range_low.get(symbol)
@@ -864,48 +861,51 @@ class MicroTradingStrategy:
         
         return None
     
-    def check_exit_signals(self, symbol: str, current_price: float) -> tuple:
-        """NEW: Range-based exits + traditional stops. Returns (exit_signal, position_id) tuple.
+    def check_exit_signals(self, symbol: str, current_price: float) -> Optional[str]:
+        """Range-based exits + traditional stops.
         
         Exit if:
         1. Price near range high (top 10%) → take profit
         2. Stop loss hit
         3. Trailing stop triggered
-        
-        Returns: (exit_signal_string, position_id) or (None, None)
         """
-        if symbol not in self.current_positions or len(self.current_positions[symbol]) == 0:
-            return None, None
-        
-        # NEW: Check EACH position independently
-        for position in self.current_positions[symbol]:
-            trade = position
-            
-            # Get this position's paired range
-            range_id = trade.position_id
-            range_high = None
-            range_low = None
-            
-            if symbol in self.opening_range:
-                for range_obj in self.opening_range[symbol]:
-                    if range_obj["range_id"] == range_id:
-                        range_high = range_obj["high"]
-                        range_low = range_obj["low"]
-                        break
+        if symbol not in self.current_positions:
+            return None
 
-            # PnL calc (CFD-style)
-            if trade.direction == "LONG":
-                pnl_pct = (current_price - trade.entry_price) / trade.entry_price
-            else:
-                pnl_pct = (trade.entry_price - current_price) / trade.entry_price
+        trade = self.current_positions[symbol]
 
-            # Track best favorable run for trailing protection
-            if pnl_pct > trade.best_favorable_pct:
-                trade.best_favorable_pct = pnl_pct
-                trade.best_favorable_price = current_price
+        # PnL calc (CFD-style)
+        if trade.direction == "LONG":
+            pnl_pct = (current_price - trade.entry_price) / trade.entry_price
+        else:
+            pnl_pct = (trade.entry_price - current_price) / trade.entry_price
 
-            # ====== RANGE-BASED EXIT: Near High ======
-            if range_high is not None and range_low is not None:
+        # Max adverse excursion guard - DISABLED
+        # mae_pct = STRATEGY_CONFIG.get("max_adverse_excursion_pct")
+        # if mae_pct and mae_pct > 0 and pnl_pct <= -mae_pct:
+        #     logger.info(
+        #         f"⚠️ EXIT {symbol} {trade.direction}: MAE {pnl_pct*100:+.2f}% <= {-mae_pct*100:.2f}%"
+        #     )
+        #     return "MAE"
+
+        # Track best favorable run for trailing protection
+        if pnl_pct > trade.best_favorable_pct:
+            trade.best_favorable_pct = pnl_pct
+            trade.best_favorable_price = current_price
+
+        # ====== RANGE-BASED EXIT: Near High ======
+        buf = self.tick_buffers.get(symbol)
+        if buf:
+            prices = buf.get_prices()
+            min_lookback = STRATEGY_CONFIG.get("range_lookback_min_ticks", 5)
+            max_lookback = STRATEGY_CONFIG.get("range_lookback_max_ticks", 60)
+            if len(prices) >= min_lookback:
+                lookback_ticks = min(len(prices), max_lookback)
+                lookback_ticks = max(lookback_ticks, min_lookback)
+                
+                lookback_prices = prices[-lookback_ticks:]
+                range_high = max(lookback_prices)
+                range_low = min(lookback_prices)
                 range_size = range_high - range_low
                 
                 if range_size > 0:
@@ -914,81 +914,99 @@ class MicroTradingStrategy:
                     
                     # EXIT signal: Price near range high (configurable threshold)
                     if position_in_range >= exit_zone and current_price >= trade.entry_price:
-                        buf = self.tick_buffers.get(symbol)
-                        if buf:
-                            prices = buf.get_prices()
-                            prev_price = prices[-2] if len(prices) >= 2 else current_price
-                        else:
-                            prev_price = current_price
+                        prev_price = prices[-2] if len(prices) >= 2 else current_price
 
                         # If price is still rising in the top zone, hold; exit on first dip
                         if trade.direction == "LONG" and current_price >= prev_price:
                             logger.debug(
-                                f"HOLD {symbol} Position #{range_id}: TOP ZONE rising | "
+                                f"HOLD {symbol} {trade.direction}: TOP ZONE rising | "
                                 f"Price ${current_price:.2f} (prev ${prev_price:.2f}) | "
                                 f"PnL: {pnl_pct*100:+.2f}%"
                             )
                         else:
                             logger.info(
-                                f"📊 EXIT Position #{range_id} {trade.direction}: RANGE TOP (dip) | "
+                                f"📊 EXIT {symbol} {trade.direction}: RANGE TOP (dip) | "
                                 f"Price ${current_price:.2f} in top {(1-position_in_range)*100:.1f}% "
                                 f"(range: ${range_low:.2f}-${range_high:.2f}) | PnL: {pnl_pct*100:+.2f}%"
                             )
-                            return "RANGE_HIGH", trade.id
+                            return "RANGE_HIGH"
                     elif position_in_range >= exit_zone and current_price < trade.entry_price:
                         logger.debug(
-                            f"Skip RANGE_TOP exit for Position #{range_id}: price below entry (${current_price:.2f} < ${trade.entry_price:.2f})"
+                            f"Skip RANGE_TOP exit: price below entry (${current_price:.2f} < ${trade.entry_price:.2f})"
                         )
 
-            # Stop loss (hard safety cap)
-            stop_loss_pct = STRATEGY_CONFIG.get("stop_loss")
-            if stop_loss_pct and stop_loss_pct > 0 and pnl_pct <= -stop_loss_pct:
-                logger.info(f"🛑 EXIT Position #{range_id} {trade.direction}: STOP LOSS | PnL: {pnl_pct*100:+.2f}%")
-                return "SL", trade.id
+        # Stop loss (hard safety cap)
+        stop_loss_pct = STRATEGY_CONFIG.get("stop_loss")
+        if stop_loss_pct and stop_loss_pct > 0 and pnl_pct <= -stop_loss_pct:
+            logger.info(f"🛑 EXIT {symbol} {trade.direction}: STOP LOSS | PnL: {pnl_pct*100:+.2f}%")
+            return "SL"
 
-            # Trailing stop (lock in profits after significant gain)
-            trail_activate = STRATEGY_CONFIG.get("trailing_stop_activate_pct", 0.01)
-            trail_distance = STRATEGY_CONFIG.get("trailing_stop_distance_pct", 0.005)
-            if trade.best_favorable_pct >= trail_activate:
-                giveback = trade.best_favorable_pct - pnl_pct
-                if giveback >= trail_distance:
-                    logger.info(
-                        f"📊 EXIT Position #{range_id} {trade.direction}: TRAILING STOP | "
-                        f"Best: {trade.best_favorable_pct*100:+.2f}% → Current: {pnl_pct*100:+.2f}% | "
-                        f"Giveback: {giveback*100:.2f}%"
-                    )
-                    return "TRAIL", trade.id
+        # Trailing stop (lock in profits after significant gain)
+        trail_activate = STRATEGY_CONFIG.get("trailing_stop_activate_pct", 0.01)
+        trail_distance = STRATEGY_CONFIG.get("trailing_stop_distance_pct", 0.005)
+        if trade.best_favorable_pct >= trail_activate:
+            giveback = trade.best_favorable_pct - pnl_pct
+            if giveback >= trail_distance:
+                logger.info(
+                    f"📊 EXIT {symbol} {trade.direction}: TRAILING STOP | "
+                    f"Best: {trade.best_favorable_pct*100:+.2f}% → Current: {pnl_pct*100:+.2f}% | "
+                    f"Giveback: {giveback*100:.2f}%"
+                )
+                return "TRAIL"
 
-            # Profit target (optional)
-            profit_target = STRATEGY_CONFIG.get("profit_target", 0.05)
-            if profit_target and pnl_pct >= profit_target:
-                logger.info(f"🎯 EXIT Position #{range_id} {trade.direction}: PROFIT TARGET | PnL: {pnl_pct*100:+.2f}%")
-                return "TP", trade.id
+        # Profit target (optional)
+        profit_target = STRATEGY_CONFIG.get("profit_target", 0.05)
+        if profit_target and pnl_pct >= profit_target:
+            logger.info(f"🎯 EXIT {symbol} {trade.direction}: PROFIT TARGET | PnL: {pnl_pct*100:+.2f}%")
+            return "TP"
 
-            # Time-decay exits: gradually lower profit thresholds as time passes
-            elapsed_seconds = (datetime.now() - trade.entry_time).total_seconds()
-            elapsed_minutes = elapsed_seconds / 60
+        # Time-decay exits: gradually lower profit thresholds as time passes
+        # Time-Decay Exit: Unlocks capital from stalled trades
+        elapsed_seconds = (datetime.now() - trade.entry_time).total_seconds()
+        elapsed_minutes = elapsed_seconds / 60
+        
+        time_decay_exits = STRATEGY_CONFIG.get("time_decay_exits", [])
+        if time_decay_exits:
+            # Check tiers from longest to shortest time (earliest match wins)
+            sorted_tiers = sorted(time_decay_exits, key=lambda x: x["minutes"], reverse=True)
             
-            time_decay_exits = STRATEGY_CONFIG.get("time_decay_exits", [])
-            if time_decay_exits:
-                sorted_tiers = sorted(time_decay_exits, key=lambda x: x["minutes"], reverse=True)
+            # Debug: Log current status for this trade
+            logger.debug(
+                f"📊 TIME_DECAY check for {symbol} {trade.direction}: "
+                f"Elapsed={elapsed_minutes:.1f}min, P/L={pnl_pct*100:+.2f}%, "
+                f"Price=${current_price:.2f}"
+            )
+            
+            for threshold in sorted_tiers:
+                minutes_req = threshold["minutes"]
+                profit_req = threshold["profit_pct"]
                 
-                for threshold in sorted_tiers:
-                    minutes_req = threshold["minutes"]
-                    profit_req = threshold["profit_pct"]
-                    
-                    if elapsed_minutes >= minutes_req:
-                        if pnl_pct >= profit_req:
-                            logger.info(
-                                f"🎯 EXIT Position #{range_id} {trade.direction}: TIME_DECAY_{minutes_req}MIN | "
-                                f"⏱️  Elapsed: {elapsed_minutes:.1f}min | "
-                                f"💰 P/L: {pnl_pct*100:+.2f}%"
-                            )
-                            return "TIME_DECAY", trade.id
-                        else:
-                            break
+                # Check if this tier is active
+                if elapsed_minutes >= minutes_req:
+                    # This tier is now active, check if P/L meets threshold
+                    if pnl_pct >= profit_req:
+                        logger.info(
+                            f"🎯 EXIT {symbol} {trade.direction}: TIME_DECAY_{minutes_req}MIN | "
+                            f"⏱️  Elapsed: {elapsed_minutes:.1f}min (threshold: {minutes_req}min) | "
+                            f"💰 P/L: {pnl_pct*100:+.2f}% (threshold: {profit_req*100:+.1f}%) | "
+                            f"📈 Price: ${current_price:.2f} | Entry: ${trade.entry_price:.2f}"
+                        )
+                        return "TIME_DECAY"
+                    else:
+                        # Tier is active but P/L not sufficient
+                        logger.debug(
+                            f"❌ TIME_DECAY_{minutes_req}MIN not triggered for {symbol}: "
+                            f"P/L {pnl_pct*100:+.2f}% < threshold {profit_req*100:+.1f}%"
+                        )
+                        break  # Stop checking lower tiers since this is the first active one
+                else:
+                    # This tier not yet active
+                    logger.debug(
+                        f"⏳ TIME_DECAY_{minutes_req}MIN waiting: "
+                        f"{minutes_req - elapsed_minutes:.1f}min remaining (current: {elapsed_minutes:.1f}min)"
+                    )
 
-        return None, None
+        return None
     
     def check_exit_signals_legacy(self, symbol: str, current_price: float) -> Optional[str]:
         """
@@ -1222,44 +1240,30 @@ class MicroTradingStrategy:
             return event
 
         # ====== CHECK EXIT FOR OPEN POSITIONS ======
-        if tick.symbol in self.current_positions and len(self.current_positions[tick.symbol]) > 0:
-            logger.debug(f"🔍 EXIT CHECK for {tick.symbol}: {len(self.current_positions[tick.symbol])} open position(s)")
-            exit_reason, exit_position_id = self.check_exit_signals(tick.symbol, tick.price)
-            logger.debug(f"🔍 check_exit_signals returned: reason={exit_reason}, position_id={exit_position_id}")
+        if tick.symbol in self.current_positions:
+            logger.debug(f"🔍 EXIT CHECK for {tick.symbol}: Symbol in current_positions (keys: {list(self.current_positions.keys())})")
+            exit_reason = self.check_exit_signals(tick.symbol, tick.price)
+            logger.debug(f"🔍 check_exit_signals returned: {exit_reason}")
             
             if exit_reason:
-                logger.info(f"🔍 EXIT SIGNAL {tick.symbol} Position #{exit_position_id}: Reason={exit_reason}, calling _close_position()")
-                
-                # NEW: Find and store the trade being closed
-                trade_to_close = None
-                for pos in self.current_positions[tick.symbol]:
-                    if pos.id == exit_position_id:
-                        trade_to_close = pos
-                        break
-                
-                self._close_position(tick.symbol, tick.price, exit_reason, position_id=exit_position_id)
-                
-                # Validate position was removed
-                still_exists = False
-                for pos in self.current_positions.get(tick.symbol, []):
-                    if pos.id == exit_position_id:
-                        still_exists = True
-                        break
-                
-                if not still_exists and trade_to_close:
+                logger.info(f"🔍 EXIT SIGNAL {tick.symbol}: Reason={exit_reason}, calling _close_position()")
+                trade_to_close = self.current_positions[tick.symbol]
+                self._close_position(tick.symbol, tick.price, exit_reason)
+                # Validate position was actually removed from tracking dict after close
+                if tick.symbol not in self.current_positions:
                     event["action"] = "CLOSE"
                     event["trade"] = trade_to_close
-                    event["position_id"] = exit_position_id  # NEW: Include position ID
                     event["reason"] = exit_reason
-                    logger.info(f"🔍 EXIT COMPLETE {tick.symbol} Position #{exit_position_id}: event['action']={event['action']}")
-                    logger.debug(f"✅ Position validation: Position #{exit_position_id} confirmed removed from tracking")
+                    logger.info(f"🔍 EXIT COMPLETE {tick.symbol}: event['action']={event['action']} - Position removed from tracking")
+                    logger.debug(f"✅ Position validation: {tick.symbol} confirmed removed from current_positions")
                 else:
-                    logger.error(f"❌ VALIDATION FAILED: Position #{exit_position_id} still exists for {tick.symbol} after _close_position!")
-                    event["action"] = None
+                    logger.error(f"❌ VALIDATION FAILED: Position still in current_positions for {tick.symbol} after _close_position call!")
+                    logger.error(f"   Current positions keys: {list(self.current_positions.keys())}")
+                    event["action"] = None  # Don't mark as CLOSE if still tracked
                     event["no_trade_reason"] = "Position close validation failed"
                 
-                # Update loss counter (from closed trade)
-                if trade_to_close and trade_to_close.pnl < 0:
+                # Update loss counter
+                if trade_to_close.pnl < 0:
                     self.consecutive_losses_counter += 1
                 else:
                     self.consecutive_losses_counter = 0
@@ -1351,17 +1355,14 @@ class MicroTradingStrategy:
 
                     if entry_signal:
                         self._open_position(tick.symbol, tick.price, entry_signal)
-                        # NEW: Validate position was actually added to tracking list before marking OPEN
-                        if tick.symbol in self.current_positions and len(self.current_positions[tick.symbol]) > 0:
+                        # Validate position was actually added to tracking dict before marking OPEN
+                        if tick.symbol in self.current_positions:
                             event["action"] = "OPEN"
-                            # Get the last position that was just added
-                            last_position = self.current_positions[tick.symbol][-1]
-                            event["trade"] = last_position
-                            event["position_id"] = last_position.position_id  # NEW: Include position ID
+                            event["trade"] = self.current_positions[tick.symbol]
                             event["reason"] = "RANGE_SUPPORT"  # Use actual entry signal type
-                            logger.debug(f"✅ Position #{last_position.position_id} validated for {tick.symbol}: in current_positions with entry @ ${last_position.entry_price:.4f}")
+                            logger.debug(f"✅ Position validated for {tick.symbol}: in current_positions with entry @ ${self.current_positions[tick.symbol].entry_price:.4f}")
                         else:
-                            logger.error(f"❌ VALIDATION FAILED: Position not added to current_positions for {tick.symbol} after _open_position call!")
+                            logger.error(f"❌ VALIDATION FAILED: Position not in current_positions for {tick.symbol} after _open_position call!")
                             event["no_trade_reason"] = "Position validation failed"
                     else:
                         event["no_trade_reason"] = "Waiting for crossover"
@@ -1370,36 +1371,7 @@ class MicroTradingStrategy:
         return event
     
     def _open_position(self, symbol: str, entry_price: float, direction: str):
-        """Open a new trade with daily market context. NEW: Supports multiple positions per symbol."""
-        now = time.time()
-        
-        # ===== CHECK 10-MINUTE GAP FOR 2ND POSITION =====
-        # Only Position #1 can open immediately. Position #2 needs 10-min gap.
-        current_pos_count = len(self.current_positions.get(symbol, []))
-        
-        if current_pos_count > 0:  # This would be Position #2
-            if symbol not in self.last_position_entry_time:
-                self.last_position_entry_time[symbol] = None
-            
-            if self.last_position_entry_time[symbol] is not None:
-                time_since_last = now - self.last_position_entry_time[symbol]
-                gap_required = self.position_entry_gap_seconds
-                
-                if time_since_last < gap_required:
-                    mins_remaining = (gap_required - time_since_last) / 60
-                    logger.warning(
-                        f"⏳ [{symbol}] Position #2 entry blocked: Need {gap_required/60:.0f}min gap, "
-                        f"only {time_since_last/60:.1f}min elapsed ({mins_remaining:.1f}min remaining)"
-                    )
-                    return  # Don't open position yet
-        
-        # ===== DETERMINE POSITION ID =====
-        position_id = len(self.current_positions.get(symbol, [])) + 1  # 1 or 2
-        
-        if position_id > STRATEGY_CONFIG.get("max_positions_per_symbol", 2):
-            logger.warning(f"[{symbol}] Cannot open Position #{position_id}: Max {STRATEGY_CONFIG.get('max_positions_per_symbol')} positions allowed")
-            return
-        
+        """Open a new trade with daily market context"""
         daily_change = self.current_daily_data.todays_change_pct if self.current_daily_data else 0.0
         daily_context = "DOWN" if daily_change < 0 else "UP" if daily_change > 0 else "NEUTRAL"
         daily_bias = self.current_daily_data.daily_bias if self.current_daily_data else 1.0
@@ -1414,81 +1386,49 @@ class MicroTradingStrategy:
             entry_reason="MOMENTUM_BURST",
             position_size=position_size,
             symbol=symbol,
-            position_id=position_id,  # NEW: Track which position this is
         )
-        
-        # NEW: Initialize positions list if needed and append
-        if symbol not in self.current_positions:
-            self.current_positions[symbol] = []
-        self.current_positions[symbol].append(trade)
-        
-        # Record entry time for gap checking
-        self.last_position_entry_time[symbol] = now
+        self.current_positions[symbol] = trade
         
         entry_time_str = entry_time.strftime('%H:%M:%S')
         
         # ===== LOCK RANGE TO CURRENT POSITION =====
-        # Find the range matching this position_id and lock it
+        # Set position_locked flag so range stays valid even after 15-min window expires
         if symbol in self.opening_range:
-            for range_obj in self.opening_range[symbol]:
-                if range_obj["range_id"] == position_id:
-                    range_obj["position_locked"] = True
-                    range_obj["entry_time"] = now
-                    lock_time = datetime.fromtimestamp(range_obj["lock_time"]).strftime('%H:%M:%S')
-                    expires_at = datetime.fromtimestamp(range_obj["validity_expires_at"]).strftime('%H:%M:%S')
-                    logger.info(
-                        f"[{symbol}] Position #{position_id} opened - range locked until close | "
-                        f"Range: ${range_obj['low']:.4f}-${range_obj['high']:.4f} "
-                        f"(locked at {lock_time}, was expiring at {expires_at})"
-                    )
-                    break
+            self.opening_range[symbol]["position_locked"] = True
+            lock_time = datetime.fromtimestamp(self.opening_range[symbol]["lock_time"]).strftime('%H:%M:%S')
+            expires_at = datetime.fromtimestamp(self.opening_range[symbol]["validity_expires_at"]).strftime('%H:%M:%S')
+            logger.info(
+                f"[{symbol}] Position opened - range locked until close | "
+                f"Range: ${self.opening_range[symbol]['low']:.4f}-${self.opening_range[symbol]['high']:.4f} "
+                f"(locked at {lock_time}, was expiring at {expires_at})"
+            )
         
         logger.info(
-            f"🔓 OPEN Position #{position_id} {direction} {symbol} @ ${entry_price:.2f} | size {position_size:.0f} shares | "
+            f"🔓 OPEN {direction} {symbol} @ ${entry_price:.2f} | size {position_size:.0f} shares | "
             f"Daily {daily_context} ({daily_change:+.2f}%) bias={daily_bias:.1f}x | {sizing_note} | "
             f"📍 Entry time: {entry_time_str} (for TIME_DECAY tracking)"
         )
     
-    def _close_position(self, symbol: str, exit_price: float, exit_reason: str, position_id: int = None):
-        """NEW: Close a specific position. If position_id is None, close the first/oldest position."""
+    def _close_position(self, symbol: str, exit_price: float, exit_reason: str):
+        """Close the current position and reset range to Phase 1 (BUILD)"""
         from datetime import timedelta
         
-        logger.info(f"🔍 _close_position CALLED for {symbol} @ ${exit_price} (reason: {exit_reason}, position_id: {position_id})")
-        if symbol not in self.current_positions or len(self.current_positions[symbol]) == 0:
-            logger.error(f"🔍 _close_position ERROR: {symbol} has no open positions!")
+        logger.info(f"🔍 _close_position CALLED for {symbol} @ ${exit_price} (reason: {exit_reason})")
+        if symbol not in self.current_positions:
+            logger.error(f"🔍 _close_position ERROR: {symbol} NOT in current_positions! Keys: {list(self.current_positions.keys())}")
             return
         
-        # NEW: Find the position to close
-        positions = self.current_positions[symbol]
-        
-        if position_id is not None:
-            # Close specific position by ID
-            trade_to_close = None
-            close_idx = None
-            for idx, pos in enumerate(positions):
-                if pos.position_id == position_id:
-                    trade_to_close = pos
-                    close_idx = idx
-                    break
-            
-            if trade_to_close is None:
-                logger.error(f"[{symbol}] Position #{position_id} not found to close!")
-                return
-        else:
-            # Close first position (backwards compatibility)
-            trade_to_close = positions[0]
-            close_idx = 0
-        
-        logger.info(f"🔍 _close_position EXECUTING: Closing Position #{trade_to_close.position_id} {trade_to_close.direction} position")
-        trade_to_close.close(exit_price, exit_reason)
-        self.closed_trades.append(trade_to_close)
-        self.metrics.update_from_closed_trade(trade_to_close)
+        trade = self.current_positions[symbol]
+        logger.info(f"🔍 _close_position EXECUTING: Closing {trade.direction} position")
+        trade.close(exit_price, exit_reason)
+        self.closed_trades.append(trade)
+        self.metrics.update_from_closed_trade(trade)
         
         # Track hourly trade count
         self.hourly_trade_count += 1
         
         # Implement RULE 4.4: Cooldown after consecutive losses
-        if trade_to_close.pnl < 0:
+        if trade.pnl < 0:
             self.consecutive_losses_counter += 1
             
             if self.consecutive_losses_counter >= PROFESSIONAL_RULES.get("rule_4_4_cooldown_after_losses", {}).get("consecutive_losses_threshold", 2):
@@ -1498,43 +1438,34 @@ class MicroTradingStrategy:
         else:
             self.consecutive_losses_counter = 0
         
-        logger.info(f"✅ CLOSE Position #{trade_to_close.position_id} {trade_to_close.direction} @ ${exit_price:.2f} ({exit_reason}) "
-                   f"| PnL: ${trade_to_close.pnl:.2f} ({trade_to_close.pnl_pct*100:.2f}%)")
+        logger.info(f"✅ CLOSE {trade.direction} @ ${exit_price:.2f} ({exit_reason}) "
+                   f"| PnL: ${trade.pnl:.2f} ({trade.pnl_pct*100:.2f}%)")
         
-        # ===== CLEANUP: Remove closed position from list =====
-        self.current_positions[symbol].pop(close_idx)
-        
-        # ===== RANGE CLEANUP =====
-        # Unlock the range that was paired with this position
+        # ===== RESET OPENING RANGE TO PHASE 1 (BUILD) IMMEDIATELY =====
+        # When position closes, immediately reset the range so it rebuilds
+        # for the next trading opportunity (don't wait for validity expiration)
         if symbol in self.opening_range:
-            range_to_unlock = None
-            for range_obj in self.opening_range[symbol]:
-                if range_obj["range_id"] == trade_to_close.position_id:
-                    range_to_unlock = range_obj
-                    break
-            
-            if range_to_unlock:
-                range_to_unlock["position_locked"] = False
-                logger.info(f"[{symbol}] Range #{trade_to_close.position_id} unlocked from Position #{trade_to_close.position_id}")
-            
-            # If ALL positions are closed, reset ranges completely
-            if len(self.current_positions[symbol]) == 0:
-                now = time.time()
-                self.opening_range[symbol] = []
-                self.last_position_entry_time[symbol] = None
-                self.last_entry_zone[symbol] = None
-                self.prev_range_low[symbol] = exit_price
-                logger.info(f"[{symbol}] All positions closed. Ranges RESET for fresh cycle.")
+            now = time.time()
+            self.opening_range[symbol] = {
+                "high": exit_price,
+                "low": exit_price,
+                "ticks": 1,
+                "initialized": False,
+                "build_start_time": now,
+                "lock_time": None,
+                "validity_expires_at": None,
+                "position_locked": False,
+                "phase": "BUILDING"
+            }
+            # Also clear entry zone tracking so new range can generate fresh entry signals
+            self.last_entry_zone[symbol] = None
+            self.prev_range_low[symbol] = exit_price  # Reset to current exit price as reference
+            logger.info(f"[{symbol}] Position closed @ ${exit_price:.2f}. Range RESET to Phase 1 (BUILD) for next opportunity")
         
-        # If symbol has no more open positions, optionally remove from dict (keep for metrics)
-        if len(self.current_positions[symbol]) == 0:
-            logger.info(f"[{symbol}] No more open positions")
+        del self.current_positions[symbol]
     
     def get_current_metrics(self) -> dict:
         """Return current strategy metrics"""
-        # NEW: Count total open positions across all symbols
-        total_open_positions = sum(len(positions) for positions in self.current_positions.values())
-        
         return {
             "total_ticks": self.metrics.total_ticks,
             "total_trades": self.metrics.total_trades,
@@ -1547,5 +1478,5 @@ class MicroTradingStrategy:
             "max_drawdown": self.metrics.max_drawdown,
             "current_drawdown": self.metrics.current_drawdown,
             "consecutive_losses": self.metrics.consecutive_losses,
-            "open_positions": total_open_positions,  # NEW: Total across all symbols
+            "open_positions": len(self.current_positions),
         }
