@@ -290,47 +290,6 @@ async def bot_task():
         except Exception as e:
             logger.error(f"Bot crashed: {e}. Restarting in 5 seconds...")
             await asyncio.sleep(5)
-    
-    # Broadcast to UI if callback set
-    if _broadcast_callback:
-        event = {
-            "type": "BOT_EVENT",
-            "symbol": symbol,
-            "level": level,
-            "message": message,
-            "timestamp": et.isoformat(),
-            "args": [str(a) for a in args]
-        }
-        asyncio.create_task(_broadcast_callback(event))
-
-
-async def run_bot():
-    """
-    Run the trading bot
-    
-    This version uses the new MicroTradingStrategy with EMA50/EMA20 detection
-    and connects to the historical data server.
-    """
-    logger.info("Starting new trading bot with MicroTradingStrategy")
-    
-    try:
-        await connect_to_historical_data_stream()
-    except Exception as e:
-        logger.error(f"Bot error: {e}", exc_info=True)
-        await asyncio.sleep(5)
-
-
-async def bot_task():
-    """Run bot as a repeating task (restarts on failure)"""
-    while True:
-        try:
-            await run_bot()
-        except asyncio.CancelledError:
-            logger.info("Bot task cancelled")
-            break
-        except Exception as e:
-            logger.error(f"Bot crashed: {e}. Restarting in 5 seconds...")
-            await asyncio.sleep(5)
 
 
 if __name__ == "__main__":

@@ -30,8 +30,41 @@ else
 fi
 echo ""
 
-# Step 1: Stop all processes and clean Python cache
-echo -e "${YELLOW}[1/4] Stopping all processes and cleaning cache...${NC}"
+# Step 1: Validate Python files before starting (STRATEGY 2: Code Validation)
+echo -e "${YELLOW}[1/5] Validating Python code...${NC}"
+PYTHON_FILES=$(find "$SCRIPT_DIR/bot" "$SCRIPT_DIR/websocket_server" "$SCRIPT_DIR/websocket_ui" -name "*.py" -type f)
+VALIDATION_ERRORS=0
+
+for file in $PYTHON_FILES; do
+    if ! python3 -m py_compile "$file" 2>/dev/null; then
+        echo -e "${RED}✗ Syntax error in $file - aborting startup${NC}"
+        VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+    fi
+done
+
+if [ $VALIDATION_ERRORS -gt 0 ]; then
+    echo -e "${RED}✗ Code validation failed - fix the errors above${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ All Python files validated${NC}"
+echo ""
+
+# Step 1.5: Kill existing processes (STRATEGY 6: Process Guard)
+echo -e "${YELLOW}[1.5/5] Enforcing single instance - killing any existing processes...${NC}"
+RUNNING_BOTS=$(pgrep -f "python3 bot/runner.py" | wc -l)
+RUNNING_SERVERS=$(pgrep -f "python3 websocket_server/server.py" | wc -l)
+
+if [ "$RUNNING_BOTS" -gt 0 ]; then
+    echo -e "${YELLOW}  Found $RUNNING_BOTS bot instance(s), killing...${NC}"
+    pkill -9 -f "python3 bot/runner.py" 2>/dev/null
+fi
+
+if [ "$RUNNING_SERVERS" -gt 0 ]; then
+    echo -e "${YELLOW}  Found $RUNNING_SERVERS server instance(s), killing...${NC}"
+    pkill -9 -f "python3 websocket_server/server.py" 2>/dev/null
+fi
+
+# Stop all other processes
 pkill -f "websocket|dashboard|historical_data" 2>/dev/null
 pkill -f "python3 websocket_server/server.py" 2>/dev/null
 pkill -f "python3 websocket_ui/trading_dashboard.py" 2>/dev/null
@@ -46,6 +79,18 @@ lsof -ti:8765 | xargs kill -9 2>/dev/null
 
 # Force kill any remaining Python processes on port 8001 (historical data)
 lsof -ti:8001 | xargs kill -9 2>/dev/null
+
+# Verify no duplicate instances remain
+REMAINING=$(pgrep -f "python3 bot/runner.py" | wc -l)
+if [ "$REMAINING" -gt 0 ]; then
+    echo -e "${RED}✗ Warning: $REMAINING bot instance(s) still running${NC}"
+fi
+
+echo -e "${GREEN}✓ Process guard complete${NC}"
+echo ""
+
+# Step 2: Clean Python cache
+echo -e "${YELLOW}[2/5] Cleaning cache...${NC}"
 
 # Clear Python cache files
 echo -e "${GREEN}  Clearing Python cache...${NC}"
@@ -64,11 +109,11 @@ echo -e "${GREEN}✓ All processes stopped and cache cleaned${NC}"
 echo ""
 
 # Step 2: Wait before restarting
-echo -e "${YELLOW}[2/4] Waiting 2 seconds before restart...${NC}"
+echo -e "${YELLOW}[3/5] Waiting 2 seconds before restart...${NC}"
 sleep 2
 
 # Step 3: Start server
-echo -e "${YELLOW}[3/4] Starting services...${NC}"
+echo -e "${YELLOW}[4/5] Starting services...${NC}"
 echo ""
 
 # Get the directory where the script is located (already resolved above)
@@ -84,7 +129,7 @@ set +a
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
 # Step 4: Start services based on FAKE_TICKS
-echo -e "${YELLOW}[4/4] Launching server, bot, and dashboard...${NC}"
+echo -e "${YELLOW}[5/5] Launching server, bot, and dashboard...${NC}"
 
 cd "$SCRIPT_DIR"
 
