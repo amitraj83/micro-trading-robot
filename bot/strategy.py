@@ -122,35 +122,40 @@ class MicroTradingStrategy:
                        f"confirmation_window={self.entry_confirmation_ticks_min}-{self.entry_confirmation_ticks_max} ticks")
         else:
             logger.warning("⚠️  ENTRY CONFIRMATION DISABLED (immediate entry on signal)")
+        
+        # ===== STRATEGY A: ALLOCATION CACHE (SET AT STARTUP, FIXED FOR SESSION) =====
+        self._allocation_per_position: Optional[float] = None
+        self._initialize_allocation()
+        if self._allocation_per_position:
+            logger.info(f"💰 STRATEGY A ALLOCATION: ${self._allocation_per_position:.2f} per position (fixed for session)")
 
+
+    def _initialize_allocation(self):
+        """Initialize allocation per position at startup (Strategy A: Fetch once, use for entire session)"""
+        use_mock_portfolio = RISK_CONFIG.get("use_trading212_mock")
+        available_cash = RISK_CONFIG.get("mock_portfolio_available_cash") if use_mock_portfolio else self._get_portfolio_available_cash()
+        
+        max_positions = RISK_CONFIG.get("max_open_positions", 1)
+        cash_reserve_pct = RISK_CONFIG.get("cash_reserve_per_position_pct", 1.0)
+        
+        if available_cash and max_positions > 0:
+            self._allocation_per_position = (available_cash / max_positions) * cash_reserve_pct
+        else:
+            logger.warning("⚠️  Could not initialize allocation (no available cash or max_positions=0)")
+            self._allocation_per_position = None
 
     def _compute_position_size(self, entry_price: float) -> Tuple[float, str]:
-        """Dynamic position sizing: risk % of equity / (stop distance), capped by leverage, available cash, and multi-position allocation."""
+        """Dynamic position sizing: risk % of equity / (stop distance), capped by leverage and cached allocation."""
         risk_pct = RISK_CONFIG.get("risk_per_trade_pct", 0)
         base_size = RISK_CONFIG.get("position_size", 1.0)
         min_size = max(RISK_CONFIG.get("min_position_size", 1), 1)
         stop_loss_pct = STRATEGY_CONFIG.get("stop_loss") or 0  # Handle None
 
-        # Optional: cap by available cash from mock Trading212 portfolio (or live when integrated)
-        use_mock_portfolio = RISK_CONFIG.get("use_trading212_mock")
-        available_cash = RISK_CONFIG.get("mock_portfolio_available_cash") if use_mock_portfolio else self._get_portfolio_available_cash()
-
         # Max notional cap (works even when SL disabled)
         max_notional = RISK_CONFIG.get("max_position_notional", 0)
 
-        # NEW: Multi-position cash reservation (Strategy A: Even Split)
-        max_positions = RISK_CONFIG.get("max_open_positions", 1)
-        cash_reserve_pct = RISK_CONFIG.get("cash_reserve_per_position_pct", 1.0)
-        
-        # Count currently open positions
-        current_open = len(self.current_positions)
-        
-        # Calculate cash reserved for this position (even split among max positions)
-        reserved_cash_for_position = None
-        if available_cash and max_positions > 0:
-            # Strategy A: Divide total available cash evenly among max positions
-            # With cash_reserve_pct = 1.0: each position gets (available_cash / max_positions)
-            reserved_cash_for_position = (available_cash / max_positions) * cash_reserve_pct
+        # STRATEGY A: Use cached allocation (set once at startup, fixed for entire session)
+        reserved_cash_for_position = self._allocation_per_position
         
         # If misconfigured, fall back to fixed size with notional cap
         if risk_pct <= 0 or stop_loss_pct <= 0 or entry_price <= 0:
@@ -163,8 +168,8 @@ class MicroTradingStrategy:
                 shares = max(min_size, min(shares, cash_cap_shares)) if cash_cap_shares > 0 else min_size
             
             note = f"fixed sizing (position_size={base_size})"
-            if max_positions > 1 and reserved_cash_for_position is not None:
-                note += f" | multi-pos: {current_open}/{max_positions}, ${reserved_cash_for_position:.2f}/pos"
+            if reserved_cash_for_position is not None:
+                note += f" | allocation: ${reserved_cash_for_position:.2f}/pos"
             return float(shares), note
 
         equity = 100.0 + self.metrics.total_pnl  # reference equity
@@ -183,7 +188,7 @@ class MicroTradingStrategy:
             if cap_shares > 0:
                 shares = max(min_size, min(shares, cap_shares))
 
-        # Cap by reserved cash (multi-position allocation) instead of total cash
+        # Cap by cached allocation (Strategy A: fixed for entire session)
         if reserved_cash_for_position and entry_price > 0:
             cash_cap_shares = int(reserved_cash_for_position / entry_price)
             if cash_cap_shares > 0:
@@ -203,12 +208,9 @@ class MicroTradingStrategy:
         note = (f"risk {risk_pct*100:.2f}% of ${equity:.2f}, stop {stop_loss_pct*100:.2f}%, "
                 f"raw {raw_shares:.1f} -> size {shares}{leverage_note}")
         
-        # Add multi-position allocation info
-        if max_positions > 1 and reserved_cash_for_position is not None:
-            note += f" | multi-pos: {current_open}/{max_positions} open, ${reserved_cash_for_position:.2f}/pos"
-        
+        # Add allocation info (Strategy A - fixed at startup)
         if reserved_cash_for_position is not None:
-            note += f", reserved cash cap ${reserved_cash_for_position:.2f}"
+            note += f" | allocation: ${reserved_cash_for_position:.2f}/pos"
         if max_notional:
             note += f", notional cap ${max_notional:.0f}"
         return float(shares), note

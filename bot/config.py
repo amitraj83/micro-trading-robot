@@ -169,7 +169,7 @@ STRATEGY_CONFIG = {
 
 # Risk Management Configuration - PRODUCTION GRADE (Rule 5.x)
 RISK_CONFIG = {
-    "max_open_positions": 3,  # Allow up to 3 simultaneous trades
+    "max_open_positions": int(os.getenv("MAX_SYMBOLS", 3)),  # Read from MAX_SYMBOLS in .env
     "cash_reserve_per_position_pct": 1.0,  # Strategy A: 100% / max_positions (even split, conservative)
     # Alternative strategies:
     # - 0.5: Strategy B (50% reserve per position, keep 50% unallocated)
