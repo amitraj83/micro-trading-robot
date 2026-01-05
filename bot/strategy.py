@@ -139,6 +139,12 @@ class MicroTradingStrategy:
         
         if available_cash and max_positions > 0:
             self._allocation_per_position = (available_cash / max_positions) * cash_reserve_pct
+            logger.info(f"💰 STRATEGY A ALLOCATION BREAKDOWN:")
+            logger.info(f"   Total Cash Available: ${available_cash:,.2f}")
+            logger.info(f"   Max Open Positions: {max_positions}")
+            logger.info(f"   Cash Reserve %: {cash_reserve_pct*100:.0f}%")
+            logger.info(f"   Calculation: (${available_cash:,.2f} / {max_positions}) × {cash_reserve_pct} = ${self._allocation_per_position:.2f}")
+            logger.info(f"   💰 STRATEGY A ALLOCATION: ${self._allocation_per_position:.2f} per position (fixed for session)")
         else:
             logger.warning("⚠️  Could not initialize allocation (no available cash or max_positions=0)")
             self._allocation_per_position = None
