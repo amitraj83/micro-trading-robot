@@ -53,7 +53,8 @@ def fetch_gainers_yahoo(screener_type: str = None) -> List[Dict[str, Any]]:
             - day_losers: Top % losers (contrarian trades)
     """
     try:
-        import yfinance as yf
+        import urllib.request
+        import json as json_module
         
         # Get screener type from parameter or environment variable
         if screener_type is None:
@@ -66,15 +67,21 @@ def fetch_gainers_yahoo(screener_type: str = None) -> List[Dict[str, Any]]:
         gainers = []
         
         try:
-            # Scrape the actual Yahoo Finance screener page
-            import urllib.request
-            import json as json_module
+            # Map screener type to Yahoo Finance API parameter
+            screener_map = {
+                'day_gainers': 'day_gainers',
+                'most_active': 'most_active',
+                'most_trending': 'most_watched',  # most_trending -> most_watched
+                'day_losers': 'day_losers'
+            }
             
-            # Yahoo Finance screener API endpoint with parameterized scrIds
-            url = f"https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=true&lang=en-US&region=US&scrIds={screener_type}&count=100"
+            screener_param = screener_map.get(screener_type, 'day_gainers')
+            
+            # Updated Yahoo Finance screener API endpoint
+            url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/screenerResearch?scrIds={screener_param}&count=100"
             
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
             }
             
             req = urllib.request.Request(url, headers=headers)
@@ -82,50 +89,63 @@ def fetch_gainers_yahoo(screener_type: str = None) -> List[Dict[str, Any]]:
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json_module.loads(response.read().decode())
                 
-                # Extract ticker data from the screener results
+                # Try to extract from various possible response formats
+                quotes = []
+                
+                # Format 1: Direct quotes in result
                 if 'finance' in data and 'result' in data['finance']:
                     results = data['finance']['result']
-                    if results and len(results) > 0 and 'quotes' in results[0]:
-                        quotes = results[0]['quotes']
+                    if results and len(results) > 0:
+                        if 'quotes' in results[0]:
+                            quotes = results[0]['quotes']
+                
+                # Format 2: Quotes at top level
+                if not quotes and 'quotes' in data:
+                    quotes = data['quotes']
+                
+                # Process quotes
+                for quote in quotes[:100]:  # Limit to 100
+                    ticker = quote.get('symbol', '')
+                    regular_price = quote.get('regularMarketPrice', {})
+                    if isinstance(regular_price, dict):
+                        regular_price = regular_price.get('raw', 0)
+                    
+                    prev_close = quote.get('regularMarketPreviousClose', {})
+                    if isinstance(prev_close, dict):
+                        prev_close = prev_close.get('raw', 0)
+                    
+                    if ticker and regular_price and prev_close and prev_close > 0:
+                        change = regular_price - prev_close
+                        change_percent = (change / prev_close) * 100
                         
-                        for quote in quotes:
-                            ticker = quote.get('symbol', '')
-                            regular_price = quote.get('regularMarketPrice', {}).get('raw', 0)
-                            prev_close = quote.get('regularMarketPreviousClose', {}).get('raw', 0)
-                            
-                            if ticker and regular_price and prev_close and prev_close > 0:
-                                change = regular_price - prev_close
-                                change_percent = (change / prev_close) * 100
-                                
-                                gainer = {
-                                    'ticker': ticker,
-                                    'todaysChangePerc': change_percent,
-                                    'todaysChange': change,
-                                    'currentPrice': regular_price,
-                                    'dayOpen': quote.get('regularMarketOpen', {}).get('raw', regular_price),
-                                    'dayHigh': quote.get('regularMarketDayHigh', {}).get('raw', regular_price),
-                                    'dayLow': quote.get('regularMarketDayLow', {}).get('raw', regular_price),
-                                    'dayVolume': quote.get('regularMarketVolume', {}).get('raw', 0),
-                                }
-                                gainers.append(gainer)
-                        
-                        print(f"Retrieved {len(gainers)} gainers from Yahoo Finance screener")
+                        gainer = {
+                            'ticker': ticker,
+                            'todaysChangePerc': change_percent,
+                            'todaysChange': change,
+                            'currentPrice': regular_price,
+                            'dayVolume': quote.get('regularMarketVolume', {}).get('raw', 0) if isinstance(quote.get('regularMarketVolume', {}), dict) else 0,
+                        }
+                        gainers.append(gainer)
+                
+                if gainers:
+                    print(f"✓ Retrieved {len(gainers)} gainers from Yahoo Finance screener")
+                    # Sort by percentage change (highest first)
+                    gainers.sort(key=lambda x: x['todaysChangePerc'], reverse=True)
+                    return gainers
+                else:
+                    print(f"⚠ No quotes found in response (API may have changed format)")
+                    return []
             
-            # Sort by percentage change (highest first)
-            gainers.sort(key=lambda x: x['todaysChangePerc'], reverse=True)
-            
-            return gainers
-            
+        except urllib.error.HTTPError as e:
+            print(f"✗ HTTP Error {e.code}: {e.reason}")
+            print(f"  Endpoint: {screener_param}")
+            return []
         except Exception as e:
-            # Let caller fail over to next platform instead of manual scrape list
-            print(f"Error fetching from screener API: {e}")
+            print(f"✗ Error fetching from screener API: {e}")
             return []
             
-    except ImportError:
-        print("Error: yfinance not installed. Run 'pip install yfinance'")
-        return []
     except Exception as e:
-        print(f"Error fetching Yahoo Finance gainers: {e}")
+        print(f"✗ Error fetching Yahoo Finance gainers: {e}")
         return []
 
 

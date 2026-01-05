@@ -99,6 +99,7 @@ STRATEGY_CONFIG = {
     "use_opening_range": USE_OPENING_RANGE,  # Use fixed opening range instead of rolling range
     "opening_range_ticks": OPENING_RANGE_TICKS,  # Number of ticks for opening range (5 min test, 30 min prod)
     "opening_range_validity_minutes": RANGE_VALID_DURATION_MINUTES,  # How long locked range stays valid
+    "use_volume_aware_range": True,  # NEW: Calculate range using volume-aware bear/bull zone logic (default: False for backward compat)
     
     # Range-based entry/exit thresholds
     "range_lookback_max_ticks": RANGE_LOOKBACK_MAX_TICKS,  # 1-hour max (3600 ticks at 1sec interval)
@@ -117,6 +118,8 @@ STRATEGY_CONFIG = {
     "entry_bounce_timeout_ticks": ENTRY_BOUNCE_TIMEOUT_TICKS,
     "entry_confirmation_ticks_min": ENTRY_CONFIRMATION_TICKS_MIN,
     "entry_confirmation_ticks_max": ENTRY_CONFIRMATION_TICKS_MAX,
+    "use_volume_enhanced_entry": True,  # NEW: Enable volume + price direction analysis for entry (default: False for backward compat)
+    "volume_accumulation_ratio": 1.5,  # NEW: Volume ratio > this = accumulation signal (1.5x average)
 
     # Entry confirmation
     "entry_momentum_threshold": 0.0008,  # Require 0.08% price move in favorable direction to confirm entry (very loose)

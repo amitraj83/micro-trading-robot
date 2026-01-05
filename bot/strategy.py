@@ -470,7 +470,18 @@ class MicroTradingStrategy:
                     "lock_time": None,
                     "validity_expires_at": None,
                     "position_locked": False,
-                    "phase": "BUILDING"
+                    "phase": "BUILDING",
+                    # Volume-aware range data (NEW)
+                    "volume_data": {
+                        "prices": [],
+                        "volumes": [],
+                        "vol_median": None,
+                        "vol_threshold": None,
+                        "bear_zone_low": None,
+                        "bear_zone_high": None,
+                        "bull_zone_low": None,
+                        "bull_zone_high": None,
+                    }
                 }
                 if symbol in ["SPY", "QQQ"]:
                     print(f"[check_entry_signals] 🏗️  {symbol} NEW BUILDING RANGE CREATED (ticks=1) at {datetime.fromtimestamp(now).strftime('%H:%M:%S')}")
@@ -509,7 +520,18 @@ class MicroTradingStrategy:
                         "lock_time": None,
                         "validity_expires_at": None,
                         "position_locked": False,
-                        "phase": "BUILDING"
+                        "phase": "BUILDING",
+                        # Volume-aware range data
+                        "volume_data": {
+                            "prices": [],
+                            "volumes": [],
+                            "vol_median": None,
+                            "vol_threshold": None,
+                            "bear_zone_low": None,
+                            "bear_zone_high": None,
+                            "bull_zone_low": None,
+                            "bull_zone_high": None,
+                        }
                     }
                     or_data = self.opening_range[symbol]
             
@@ -518,6 +540,13 @@ class MicroTradingStrategy:
                 or_data["ticks"] += 1
                 or_data["high"] = max(or_data["high"], current_price)
                 or_data["low"] = min(or_data["low"], current_price)
+                
+                # NEW: Collect volume data for volume-aware logic
+                use_volume_aware = STRATEGY_CONFIG.get("use_volume_aware_range", False)
+                if use_volume_aware:
+                    or_data["volume_data"]["prices"].append(current_price)
+                    current_volume = buf.get_latest_volume() if buf else 0
+                    or_data["volume_data"]["volumes"].append(current_volume)
                 
                 if symbol in ["SPY", "QQQ"]:
                     print(f"[check_entry_signals] 🏗️  {symbol} BUILDING ticks incremented: {or_data['ticks']}/{self.opening_range_ticks}")
@@ -528,11 +557,28 @@ class MicroTradingStrategy:
                     or_data["lock_time"] = now
                     or_data["validity_expires_at"] = now + (self.opening_range_validity_minutes * 60)
                     or_data["phase"] = "LOCKED"
-                    logger.warning(
-                        f"✅ [{symbol}] Phase 2 LOCKED after {or_data['ticks']} ticks at {datetime.fromtimestamp(now).strftime('%H:%M:%S')}: "
-                        f"${or_data['low']:.4f} - ${or_data['high']:.4f} "
-                        f"(valid until {datetime.fromtimestamp(or_data['validity_expires_at']).strftime('%H:%M:%S')})"
-                    )
+                    
+                    # NEW: Compute volume zones if enabled
+                    use_volume_aware = STRATEGY_CONFIG.get("use_volume_aware_range", False)
+                    if use_volume_aware:
+                        self.compute_volume_zones(or_data)
+                        # Log volume-aware analysis
+                        vol_data = or_data["volume_data"]
+                        logger.warning(
+                            f"✅ [{symbol}] Phase 2 LOCKED (VOLUME-AWARE) after {or_data['ticks']} ticks:\n"
+                            f"  Raw min/max:  ${or_data['low']:.4f} - ${or_data['high']:.4f}\n"
+                            f"  Bear zone:    ${vol_data.get('bear_zone_low', or_data['low']):.4f} - ${vol_data.get('bear_zone_high', or_data['low']):.4f}\n"
+                            f"  Bull zone:    ${vol_data.get('bull_zone_low', or_data['high']):.4f} - ${vol_data.get('bull_zone_high', or_data['high']):.4f}\n"
+                            f"  Vol median:   {vol_data.get('vol_median', 0):.0f}\n"
+                            f"  Valid until:  {datetime.fromtimestamp(or_data['validity_expires_at']).strftime('%H:%M:%S')}"
+                        )
+                    else:
+                        # Old logic: raw min/max only
+                        logger.warning(
+                            f"✅ [{symbol}] Phase 2 LOCKED (RAW MIN/MAX) after {or_data['ticks']} ticks at {datetime.fromtimestamp(now).strftime('%H:%M:%S')}: "
+                            f"${or_data['low']:.4f} - ${or_data['high']:.4f} "
+                            f"(valid until {datetime.fromtimestamp(or_data['validity_expires_at']).strftime('%H:%M:%S')})"
+                        )
                 else:
                     # Still building, show progress
                     build_pct = (or_data["ticks"] / self.opening_range_ticks) * 100
@@ -636,6 +682,12 @@ class MicroTradingStrategy:
                                     pending["status"] = "waiting_confirmation"
                                     pending["touch_price"] = current_price
                                     
+                                    # Set reason for logging
+                                    calc_debug["rejection_reason"] = (
+                                        f"Re-evaluating after bounce: {bounce_pct*100:.2f}% bounce "
+                                        f"(${rejection_price:.4f} → ${current_price:.4f}) in {ticks_since_rejection} ticks"
+                                    )
+                                    
                                     # Return to main confirmation logic by NOT entering here
                                     return None, calc_debug
                                 
@@ -645,6 +697,12 @@ class MicroTradingStrategy:
                                         f"⏱️  BOUNCE TIMEOUT {symbol}: No bounce after {ticks_since_rejection} ticks | "
                                         f"Rejected at ${rejection_price:.4f}, now ${current_price:.4f} ({bounce_pct*100:.2f}%) | "
                                         f"Giving up, waiting for new support touch..."
+                                    )
+                                    
+                                    # Set rejection reason for logging
+                                    calc_debug["rejection_reason"] = (
+                                        f"Bounce timeout: Expected {self.entry_bounce_threshold*100:.1f}% bounce within "
+                                        f"{self.entry_bounce_timeout_ticks} ticks, got {bounce_pct*100:.2f}% in {ticks_since_rejection} ticks"
                                     )
                                     
                                     # Delete and wait for next entry signal
@@ -659,6 +717,11 @@ class MicroTradingStrategy:
                                     logger.debug(
                                         f"⏳ BOUNCE WAITING {symbol}: ${bounce_pct*100:+.2f}% (need {self.entry_bounce_threshold*100:.2f}%), "
                                         f"{ticks_since_rejection}/{self.entry_bounce_timeout_ticks} ticks"
+                                    )
+                                    calc_debug["rejection_reason"] = (
+                                        f"Bounce waiting: Got {bounce_pct*100:.2f}% bounce "
+                                        f"(need {self.entry_bounce_threshold*100:.1f}%) in {ticks_since_rejection}/"
+                                        f"{self.entry_bounce_timeout_ticks} ticks"
                                     )
                                     return None, calc_debug
                         
@@ -698,6 +761,11 @@ class MicroTradingStrategy:
                                 f"support={support_strength_score:.1f}, recency={range_recency_score:.2f}) | "
                                 f"⏳ Waiting {self.calculate_adaptive_confirmation_window(symbol)} ticks for confirmation..."
                             )
+                            # Set rejection reason for logging
+                            calc_debug["rejection_reason"] = (
+                                f"Support touch detected, waiting for confirmation: {self.calculate_adaptive_confirmation_window(symbol)} ticks "
+                                f"(confidence={confidence*100:.0f}%)"
+                            )
                             # Don't enter yet - wait for confirmation
                             return None, calc_debug
                         else:
@@ -723,7 +791,16 @@ class MicroTradingStrategy:
                                     post_touch_score
                                 )
                                 
-                                logger.debug(
+                                # Volume-enhanced entry: Apply volume signal adjustment if enabled
+                                if STRATEGY_CONFIG.get("use_volume_enhanced_entry", False):
+                                    buf = self.tick_buffers.get(symbol)
+                                    current_volume = buf.get_latest_volume() if buf else 0
+                                    if buf and current_volume > 0:
+                                        volume_score_adjustment = self.calculate_volume_score(symbol, current_price, current_volume, buf)
+                                        final_confidence += volume_score_adjustment / 100
+                                        logger.warning(f"📊 VOLUME-ENHANCED {symbol}: Volume adjustment {volume_score_adjustment:+.0f}% → final confidence {final_confidence*100:.0f}%")
+                                
+                                logger.warning(
                                     f"📈 CONFIRMATION COMPLETE {symbol}: {buf_len} ticks | "
                                     f"Post-touch reaction: {post_touch_score:.1f} | "
                                     f"Final confidence: {final_confidence*100:.0f}%"
@@ -765,6 +842,13 @@ class MicroTradingStrategy:
                                         pending["rejection_tick"] = len(prices)
                                         pending["final_confidence"] = final_confidence
                                         
+                                        # Set rejection reason for logging
+                                        calc_debug["rejection_reason"] = (
+                                            f"Low confidence rejection: {final_confidence*100:.0f}% "
+                                            f"(need {self.entry_confidence_threshold*100:.0f}%, "
+                                            f"waiting for {self.entry_bounce_threshold*100:.1f}% bounce)"
+                                        )
+                                        
                                         # Keep buffers for potential re-evaluation
                                         return None, calc_debug
                                     else:
@@ -773,6 +857,16 @@ class MicroTradingStrategy:
                                             f"❌ ENTRY REJECTED {symbol}: Final confidence {final_confidence*100:.0f}% < "
                                             f"low threshold {self.entry_low_confidence_threshold*100:.0f}% | "
                                             f"Waiting for next support touch..."
+                                        )
+                                        
+                                        # Set rejection reason for logging
+                                        calc_debug["rejection_reason"] = (
+                                            f"Full confidence rejection: {final_confidence*100:.0f}% < "
+                                            f"low threshold {self.entry_low_confidence_threshold*100:.0f}% | "
+                                            f"(momentum={pending['pre_touch_score']:.1f}, "
+                                            f"support={pending['support_strength_score']:.1f}, "
+                                            f"recency={pending['range_recency_score']:.2f}, "
+                                            f"post_touch={post_touch_score:.1f})"
                                         )
                                         
                                         # Delete pending entry - support failed
@@ -787,6 +881,10 @@ class MicroTradingStrategy:
                                     f"⏳ CONFIRMATION WAITING {symbol}: {buf_len}/{confirmation_ticks_needed} ticks | "
                                     f"Price: ${current_price:.4f}"
                                 )
+                                calc_debug["rejection_reason"] = (
+                                    f"Confirmation window in progress: {buf_len}/{confirmation_ticks_needed} ticks "
+                                    f"(waiting to confirm support touch)"
+                                )
                                 return None, calc_debug
                     else:
                         # Confirmation disabled - immediate entry
@@ -797,10 +895,23 @@ class MicroTradingStrategy:
                             f"(diff: {price_vs_prev_low*100:.3f}%, range pos: {position_in_range*100:.1f}%)"
                         )
                 else:
+                    # Entry conditions not met - provide detailed rejection reason
                     if price_vs_prev_low <= 0.005 and entry_zone_key == last_zone:
-                        logger.debug(f"[{symbol}] Skip: Already entered at this zone ${entry_zone_key}")
-                    if position_in_range > 0.30:
-                        logger.debug(f"[{symbol}] Skip: Price in upper zone (pos={position_in_range*100:.1f}%)")
+                        rejection_reason = f"Already entered at zone ${entry_zone_key:.2f} (price ${current_price:.4f})"
+                        logger.debug(f"[{symbol}] {rejection_reason}")
+                        calc_debug["rejection_reason"] = rejection_reason
+                    elif position_in_range > 0.30:
+                        rejection_reason = f"Price in upper zone: {position_in_range*100:.1f}% of range (${range_low:.4f}-${range_high:.4f})"
+                        logger.debug(f"[{symbol}] {rejection_reason}")
+                        calc_debug["rejection_reason"] = rejection_reason
+                    elif price_vs_prev_low > 0.005:
+                        rejection_reason = f"Price too high vs support: {price_vs_prev_low*100:.3f}% above prev_low ${prev_low:.4f}"
+                        logger.debug(f"[{symbol}] {rejection_reason}")
+                        calc_debug["rejection_reason"] = rejection_reason
+                    else:
+                        rejection_reason = f"No support touch detected (price ${current_price:.4f}, range ${range_low:.4f}-${range_high:.4f})"
+                        logger.debug(f"[{symbol}] {rejection_reason}")
+                        calc_debug["rejection_reason"] = rejection_reason
             
             # Store current range_low for NEXT tick's comparison
             self.prev_range_low[symbol] = range_low
@@ -1365,7 +1476,12 @@ class MicroTradingStrategy:
                             logger.error(f"❌ VALIDATION FAILED: Position not in current_positions for {tick.symbol} after _open_position call!")
                             event["no_trade_reason"] = "Position validation failed"
                     else:
-                        event["no_trade_reason"] = "Waiting for crossover"
+                        # No entry signal - capture rejection reason if available
+                        rejection_reason = calc_debug.get("rejection_reason")
+                        if rejection_reason:
+                            event["no_trade_reason"] = rejection_reason
+                        else:
+                            event["no_trade_reason"] = "Waiting for entry confirmation or support touch"
         
         event["metrics"] = self.get_current_metrics()
         return event
@@ -1455,7 +1571,18 @@ class MicroTradingStrategy:
                 "lock_time": None,
                 "validity_expires_at": None,
                 "position_locked": False,
-                "phase": "BUILDING"
+                "phase": "BUILDING",
+                # Volume-aware range data
+                "volume_data": {
+                    "prices": [],
+                    "volumes": [],
+                    "vol_median": None,
+                    "vol_threshold": None,
+                    "bear_zone_low": None,
+                    "bear_zone_high": None,
+                    "bull_zone_low": None,
+                    "bull_zone_high": None,
+                }
             }
             # Also clear entry zone tracking so new range can generate fresh entry signals
             self.last_entry_zone[symbol] = None
@@ -1463,6 +1590,185 @@ class MicroTradingStrategy:
             logger.info(f"[{symbol}] Position closed @ ${exit_price:.2f}. Range RESET to Phase 1 (BUILD) for next opportunity")
         
         del self.current_positions[symbol]
+    
+    def compute_volume_zones(self, or_data: dict) -> None:
+        """
+        Compute bear (low-price high-vol) and bull (high-price high-vol) zones.
+        Updates or_data["volume_data"] in place.
+        Called when Phase 1 (BUILDING) completes.
+        """
+        prices = or_data["volume_data"]["prices"]
+        volumes = or_data["volume_data"]["volumes"]
+        
+        if not prices or not volumes or len(prices) < 10:
+            # Not enough data; skip volume analysis
+            return
+        
+        import statistics
+        
+        # Calculate volume threshold
+        vol_median = statistics.median(volumes)
+        vol_threshold = vol_median * 1.5  # High volume = 1.5x median
+        or_data["volume_data"]["vol_median"] = vol_median
+        or_data["volume_data"]["vol_threshold"] = vol_threshold
+        
+        # Split by price zone (low vs high)
+        mid_price = (min(prices) + max(prices)) / 2
+        low_price_pairs = [(p, v) for p, v in zip(prices, volumes) if p <= mid_price]
+        high_price_pairs = [(p, v) for p, v in zip(prices, volumes) if p > mid_price]
+        
+        # Bear accumulation: high-vol in low-price zone
+        low_high_vol = [p for p, v in low_price_pairs if v >= vol_threshold]
+        if low_high_vol:
+            or_data["volume_data"]["bear_zone_low"] = min(low_high_vol)
+            or_data["volume_data"]["bear_zone_high"] = max(low_high_vol)
+        
+        # Bull accumulation: high-vol in high-price zone
+        high_high_vol = [p for p, v in high_price_pairs if v >= vol_threshold]
+        if high_high_vol:
+            or_data["volume_data"]["bull_zone_low"] = min(high_high_vol)
+            or_data["volume_data"]["bull_zone_high"] = max(high_high_vol)
+    
+    def get_post_volume_price_movement(self, symbol: str, buf) -> dict:
+        """Analyze how price moved in the last 3 ticks leading into current volume bar.
+        
+        Returns dict with analysis of pre-volume price action:
+        - price_changed_up: Price was rising before volume
+        - price_changed_down: Price was falling before volume
+        - max_move_up: Maximum price increase in last 3 ticks
+        - max_move_down: Maximum price decrease in last 3 ticks
+        - direction_strength: UP, DOWN, FLAT based on net movement
+        """
+        prices = buf.get_prices() if buf else []
+        if not buf or len(prices) < 4:  # Need at least 4 ticks (3 past + current)
+            return {}
+        
+        # Look at PREVIOUS 3 ticks before current
+        current_idx = len(prices) - 1
+        if current_idx < 3:
+            return {}
+        
+        current_price = prices[current_idx]
+        past_prices = prices[current_idx - 3:current_idx]  # Last 3 ticks before current
+        
+        if not past_prices or len(past_prices) < 3:
+            return {}
+        
+        max_price = max(past_prices)
+        min_price = min(past_prices)
+        start_price = past_prices[0]  # Price 3 ticks ago
+        
+        max_move_up = max_price - start_price
+        max_move_down = start_price - min_price
+        
+        # Determine direction based on net movement from 3 ticks ago to current
+        net_move = current_price - start_price
+        if net_move > 0:
+            direction = "UP"
+        elif net_move < 0:
+            direction = "DOWN"
+        else:
+            direction = "FLAT"
+        
+        return {
+            "price_changed_up": current_price > start_price,
+            "price_changed_down": current_price < start_price,
+            "max_move_up": max_move_up,
+            "max_move_down": max_move_down,
+            "direction_strength": direction,
+            "net_move": net_move
+        }
+    
+    def classify_volume_signal(self, volume: float, avg_volume: float, price_movement: dict) -> dict:
+        """Classify volume signal as accumulation, distribution, or neutral.
+        
+        Uses volume ratio (current/average) and post-volume price direction:
+        - ACCUMULATION: High vol + price UP → Buyers accumulated
+        - DISTRIBUTION: High vol + price DOWN/FLAT → Sellers dumped
+        - WEAK_ACCUM: Low vol + price UP → Weak buyers (caution)
+        - NEUTRAL: Other combinations → No clear signal
+        
+        Returns dict with:
+        - signal_type: Classification (ACCUM/DISTRIB/WEAK_ACCUM/NEUTRAL)
+        - confidence_adjustment: Score adjustment (-50 to +25)
+        - reason: Explanation string
+        """
+        if avg_volume <= 0:
+            return {"signal_type": "NEUTRAL", "confidence_adjustment": 0, "reason": "No average volume"}
+        
+        volume_ratio = volume / avg_volume
+        ratio_threshold = STRATEGY_CONFIG.get("volume_accumulation_ratio", 1.5)
+        
+        if not price_movement:
+            return {"signal_type": "NEUTRAL", "confidence_adjustment": 0, "reason": "No price movement data"}
+        
+        direction = price_movement.get("direction_strength", "FLAT")
+        is_high_volume = volume_ratio >= ratio_threshold
+        
+        # Classification logic
+        if is_high_volume:
+            if direction == "UP":
+                return {
+                    "signal_type": "ACCUMULATION",
+                    "confidence_adjustment": 25,
+                    "reason": f"High vol ({volume_ratio:.1f}x) + price UP = buyers accumulated"
+                }
+            elif direction in ["DOWN", "FLAT"]:
+                return {
+                    "signal_type": "DISTRIBUTION",
+                    "confidence_adjustment": -50,
+                    "reason": f"High vol ({volume_ratio:.1f}x) + price {direction} = distribution trap"
+                }
+        else:  # Low volume
+            if direction == "UP":
+                return {
+                    "signal_type": "WEAK_ACCUM",
+                    "confidence_adjustment": 5,
+                    "reason": f"Low vol ({volume_ratio:.1f}x) + price UP = weak signal"
+                }
+        
+        return {"signal_type": "NEUTRAL", "confidence_adjustment": 0, "reason": "No clear volume pattern"}
+    
+    def calculate_volume_score(self, symbol: str, current_price: float, current_volume: float, buf) -> float:
+        """Calculate confidence adjustment based on volume and price action.
+        
+        Returns float adjustment (-50 to +25) to be added to base confidence score.
+        Returns 0 if data is unavailable (graceful fallback).
+        """
+        try:
+            # Get average volume from last 20 ticks
+            volumes = buf.get_volumes() if buf else []
+            if not buf or len(volumes) < 20:
+                logger.warning(f"📊 VOLUME_CALC {symbol}: Insufficient volume data ({len(volumes) if buf else 0} ticks < 20 required) → +0%")
+                return 0
+            
+            avg_volume = sum(volumes[-20:]) / 20
+            if avg_volume <= 0:
+                logger.warning(f"📊 VOLUME_CALC {symbol}: Avg volume is 0 → +0%")
+                return 0
+            
+            # Analyze post-volume price movement
+            price_movement = self.get_post_volume_price_movement(symbol, buf)
+            if not price_movement:
+                logger.warning(f"📊 VOLUME_CALC {symbol}: No price movement data → +0%")
+                return 0
+            
+            # Classify the signal
+            classification = self.classify_volume_signal(current_volume, avg_volume, price_movement)
+            
+            # Log the analysis
+            signal_type = classification.get("signal_type", "UNKNOWN")
+            adjustment = classification.get("confidence_adjustment", 0)
+            reason = classification.get("reason", "")
+            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
+            
+            logger.warning(f"📊 VOLUME_CALC {symbol}: Vol={current_volume:.0f} Avg={avg_volume:.0f} Ratio={volume_ratio:.1f}x → {signal_type} {adjustment:+.0f}% ({reason})")
+            
+            return adjustment
+            
+        except Exception as e:
+            logger.error(f"Error calculating volume score for {symbol}: {e}")
+            return 0
     
     def get_current_metrics(self) -> dict:
         """Return current strategy metrics"""
