@@ -131,9 +131,8 @@ class MicroTradingStrategy:
 
 
     def _initialize_allocation(self):
-        """Initialize allocation per position at startup (Strategy A: Fetch once, use for entire session)"""
-        use_mock_portfolio = RISK_CONFIG.get("use_trading212_mock")
-        available_cash = RISK_CONFIG.get("mock_portfolio_available_cash") if use_mock_portfolio else self._get_portfolio_available_cash()
+        """Initialize allocation per position at startup (Strategy A: Fetch once from real API, use for entire session)"""
+        available_cash = self._get_portfolio_available_cash()
         
         max_positions = RISK_CONFIG.get("max_open_positions", 1)
         cash_reserve_pct = RISK_CONFIG.get("cash_reserve_per_position_pct", 1.0)

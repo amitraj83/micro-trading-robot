@@ -183,8 +183,6 @@ RISK_CONFIG = {
     "max_leverage": 5.0,  # Max effective leverage: 5× (Rule 5.2)
     "max_trades_per_hour": 60,  # Allow up to 60 trades per hour for backtests (was 15)
     "max_position_notional": 5000.0,  # Cap dollars allocated per trade when stop loss is disabled
-    "use_trading212_mock": os.getenv("MOCK_PORTFOLIO", "true").lower() in ("true", "1", "yes", "on"),
-    "mock_portfolio_available_cash": float(os.getenv("MOCK_PORTFOLIO_CASH", "5000")),
 }
 
 # WebSocket Configuration
