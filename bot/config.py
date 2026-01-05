@@ -170,6 +170,10 @@ STRATEGY_CONFIG = {
 # Risk Management Configuration - PRODUCTION GRADE (Rule 5.x)
 RISK_CONFIG = {
     "max_open_positions": 3,  # Allow up to 3 simultaneous trades
+    "cash_reserve_per_position_pct": 1.0,  # Strategy A: 100% / max_positions (even split, conservative)
+    # Alternative strategies:
+    # - 0.5: Strategy B (50% reserve per position, keep 50% unallocated)
+    # - 0.33: Strategy C (33% reserve per position, keep 67% unallocated)
     "daily_loss_limit": -0.05,  # Stop trading if down 5% for the day (Rule 5.3)
     "cooldown_trades_after_loss": 3,  # Pause after 3 losses (Rule 5.4)
     "cooldown_seconds": 90,  # 90 second cooldown (Rule 5.4)

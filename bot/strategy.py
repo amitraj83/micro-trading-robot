@@ -125,7 +125,7 @@ class MicroTradingStrategy:
 
 
     def _compute_position_size(self, entry_price: float) -> Tuple[float, str]:
-        """Dynamic position sizing: risk % of equity / (stop distance), capped by leverage and available cash."""
+        """Dynamic position sizing: risk % of equity / (stop distance), capped by leverage, available cash, and multi-position allocation."""
         risk_pct = RISK_CONFIG.get("risk_per_trade_pct", 0)
         base_size = RISK_CONFIG.get("position_size", 1.0)
         min_size = max(RISK_CONFIG.get("min_position_size", 1), 1)
@@ -138,16 +138,34 @@ class MicroTradingStrategy:
         # Max notional cap (works even when SL disabled)
         max_notional = RISK_CONFIG.get("max_position_notional", 0)
 
+        # NEW: Multi-position cash reservation (Strategy A: Even Split)
+        max_positions = RISK_CONFIG.get("max_open_positions", 1)
+        cash_reserve_pct = RISK_CONFIG.get("cash_reserve_per_position_pct", 1.0)
+        
+        # Count currently open positions
+        current_open = len(self.current_positions)
+        
+        # Calculate cash reserved for this position (even split among max positions)
+        reserved_cash_for_position = None
+        if available_cash and max_positions > 0:
+            # Strategy A: Divide total available cash evenly among max positions
+            # With cash_reserve_pct = 1.0: each position gets (available_cash / max_positions)
+            reserved_cash_for_position = (available_cash / max_positions) * cash_reserve_pct
+        
         # If misconfigured, fall back to fixed size with notional cap
         if risk_pct <= 0 or stop_loss_pct <= 0 or entry_price <= 0:
             shares = base_size
             if max_notional and entry_price > 0:
                 cap_shares = int(max_notional / entry_price)
                 shares = max(min_size, min(shares, cap_shares)) if cap_shares > 0 else min_size
-            if available_cash and entry_price > 0:
-                cash_cap_shares = int(available_cash / entry_price)
+            if reserved_cash_for_position and entry_price > 0:
+                cash_cap_shares = int(reserved_cash_for_position / entry_price)
                 shares = max(min_size, min(shares, cash_cap_shares)) if cash_cap_shares > 0 else min_size
-            return float(shares), "fixed sizing (config fallback with notional cap)"
+            
+            note = f"fixed sizing (position_size={base_size})"
+            if max_positions > 1 and reserved_cash_for_position is not None:
+                note += f" | multi-pos: {current_open}/{max_positions}, ${reserved_cash_for_position:.2f}/pos"
+            return float(shares), note
 
         equity = 100.0 + self.metrics.total_pnl  # reference equity
         risk_dollars = equity * risk_pct
@@ -165,9 +183,9 @@ class MicroTradingStrategy:
             if cap_shares > 0:
                 shares = max(min_size, min(shares, cap_shares))
 
-        # Cap by available cash (mock portfolio)
-        if available_cash and entry_price > 0:
-            cash_cap_shares = int(available_cash / entry_price)
+        # Cap by reserved cash (multi-position allocation) instead of total cash
+        if reserved_cash_for_position and entry_price > 0:
+            cash_cap_shares = int(reserved_cash_for_position / entry_price)
             if cash_cap_shares > 0:
                 shares = max(min_size, min(shares, cash_cap_shares))
 
@@ -184,8 +202,13 @@ class MicroTradingStrategy:
 
         note = (f"risk {risk_pct*100:.2f}% of ${equity:.2f}, stop {stop_loss_pct*100:.2f}%, "
                 f"raw {raw_shares:.1f} -> size {shares}{leverage_note}")
-        if available_cash is not None:
-            note += f", cash cap ${available_cash:.2f}"
+        
+        # Add multi-position allocation info
+        if max_positions > 1 and reserved_cash_for_position is not None:
+            note += f" | multi-pos: {current_open}/{max_positions} open, ${reserved_cash_for_position:.2f}/pos"
+        
+        if reserved_cash_for_position is not None:
+            note += f", reserved cash cap ${reserved_cash_for_position:.2f}"
         if max_notional:
             note += f", notional cap ${max_notional:.0f}"
         return float(shares), note
