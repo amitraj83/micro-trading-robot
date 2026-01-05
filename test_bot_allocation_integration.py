@@ -16,9 +16,6 @@ from pathlib import Path
 # Setup path
 sys.path.insert(0, str(Path(__file__).resolve().parent / "bot"))
 
-# IMPORTANT: Enable mock portfolio for testing (set before importing config)
-os.environ["MOCK_PORTFOLIO"] = "true"
-
 from strategy import MicroTradingStrategy
 from models import Tick
 from config import RISK_CONFIG
