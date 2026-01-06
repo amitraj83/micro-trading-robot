@@ -1313,7 +1313,7 @@ class MicroTradingStrategy:
         return self.tick_buffers[symbol]
 
     def _get_portfolio_available_cash(self) -> Optional[float]:
-        """Fetch available cash from Trading212 (demo or live). Cached for a short TTL."""
+        """Fetch available cash from Trading212 (demo or live). Cached for a short TTL. Retry on rate limit."""
         now = time.time()
         if self._cached_available_cash is not None and self._cash_cache_ts and (now - self._cash_cache_ts) < self._cash_cache_ttl:
             return self._cached_available_cash
@@ -1329,22 +1329,41 @@ class MicroTradingStrategy:
             secret = os.getenv("TRADING212_DEMO_API_SECRET", "")
 
         if not key or not secret:
+            logger.warning("⚠️  Trading212 API credentials missing (key or secret)")
             return None
 
         url = f"{base}/equity/account/summary"
-        try:
-            resp = requests.get(url, auth=(key, secret), timeout=10)
-            if resp.status_code == 200:
-                data = resp.json()
-                cash_block = data.get("cash") or {}
-                available = cash_block.get("availableToTrade")
-                if available is not None:
-                    self._cached_available_cash = float(available)
-                    self._cash_cache_ts = now
-                    return self._cached_available_cash
-            return None
-        except Exception:
-            return None
+        max_retries = 3
+        retry_delay = 1.0  # seconds, increases exponentially
+        
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(url, auth=(key, secret), timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    cash_block = data.get("cash") or {}
+                    available = cash_block.get("availableToTrade")
+                    if available is not None:
+                        self._cached_available_cash = float(available)
+                        self._cash_cache_ts = now
+                        return self._cached_available_cash
+                elif resp.status_code == 429:  # Rate limited
+                    if attempt < max_retries - 1:
+                        logger.debug(f"⏳ Trading212 API rate limited (429), retry in {retry_delay}s... (attempt {attempt+1}/{max_retries})")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                        continue
+                    else:
+                        logger.warning(f"⚠️  Trading212 API rate limited after {max_retries} attempts")
+                        return None
+                else:
+                    logger.warning(f"⚠️  Trading212 API returned status {resp.status_code}")
+                    return None
+            except Exception as e:
+                logger.warning(f"⚠️  Trading212 API call failed: {e}")
+                return None
+        
+        return None
 
     def process_tick(self, tick: Tick) -> dict:
         """
