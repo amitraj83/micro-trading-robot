@@ -15,6 +15,7 @@ from config import load_env_from_file
 load_env_from_file()
 
 from trading212_broker import Trading212Broker, BotPosition
+from trading212_api import Trading212Client
 from models import Tick
 import logging
 
@@ -155,6 +156,7 @@ async def test_interactive_trading():
     # Import strategy to get allocation
     from strategy import MicroTradingStrategy
     from config import RISK_CONFIG
+    from trading212_api import Trading212Client
     
     # Create broker and strategy instances
     broker = Trading212Broker()
@@ -216,8 +218,37 @@ async def test_interactive_trading():
             break
         
         elif choice == "R":
-            # Just refresh - loop will show updated positions
-            continue
+            # REFRESH: Sync with Trading212 and clean up failed orders
+            print("\n" + "-"*80)
+            print("🔄 SYNCING WITH TRADING212")
+            print("-"*80)
+            
+            try:
+                async with Trading212Client() as client:
+                    positions_response = await client._request("GET", "/equity/positions")
+                
+                if isinstance(positions_response, list):
+                    t212_symbols = {pos.get('ticker', '').replace('_US_EQ', '') for pos in positions_response}
+                    print(f"\n   Trading212 has {len(t212_symbols)} open positions: {', '.join(sorted(t212_symbols))}")
+                    
+                    # Clean up local positions that don't exist on Trading212
+                    local_open = {s: p for s, p in broker.positions.items() if p.status == "OPEN"}
+                    to_remove = [s for s in local_open if s not in t212_symbols]
+                    
+                    if to_remove:
+                        print(f"\n   ⚠️  Removing {len(to_remove)} local positions not on Trading212:")
+                        for symbol in to_remove:
+                            del broker.positions[symbol]
+                            print(f"      • Removed: {symbol}")
+                    
+                    if local_open:
+                        print(f"\n   ✅ Synced {len(local_open)} positions")
+                else:
+                    print(f"   Response: {positions_response}")
+            except Exception as e:
+                print(f"   ❌ Error syncing: {e}")
+            
+            input("\nPress Enter to continue...")
         
         elif choice == "B":
             # BUY symbols
@@ -275,10 +306,11 @@ async def test_interactive_trading():
                 notional_value = quantity * entry_price
                 
                 print(f"\n   📊 Order Details for {symbol}:")
-                print(f"      Price: ${entry_price:.2f}")
-                print(f"      Quantity: {quantity} shares")
+                print(f"      Allocation per Position: ${allocation_per_pos:.2f}")
+                print(f"      Entry Price: ${entry_price:.2f}")
+                print(f"      Calculated Quantity: int(${allocation_per_pos:.2f} / ${entry_price:.2f}) = {quantity} shares")
                 print(f"      Notional Value: ${notional_value:.2f}")
-                print(f"      Allocation Used: ${notional_value:.2f} / ${allocation_per_pos:.2f}")
+                print(f"      Allocation Used: ${notional_value:.2f} / ${allocation_per_pos:.2f} ({(notional_value/allocation_per_pos)*100:.1f}%)")
                 
                 confirm = input(f"\n   ✓ Execute BUY order? (y/n): ").strip().lower()
                 
@@ -325,15 +357,34 @@ async def test_interactive_trading():
             print("💰 SELL SYMBOLS")
             print("-"*80)
             
-            # Get list of open positions
-            open_symbols = [s for s, p in broker.positions.items() if p.status == "OPEN"]
+            # Get list of open positions from LOCAL broker tracking
+            open_symbols_local = [s for s, p in broker.positions.items() if p.status == "OPEN"]
             
-            if not open_symbols:
-                print("\n⚠️  No open positions to sell")
+            # Also fetch REAL positions from Trading212 API
+            print(f"\n   🔍 Fetching open positions from Trading212 API...")
+            try:
+                async with Trading212Client() as client:
+                    positions_data = await client.get_positions()
+                
+                if isinstance(positions_data, list):
+                    open_symbols_api = [p.get("ticker", "").split("_")[0] for p in positions_data if p.get("status") == "OPEN"]
+                    print(f"   ✅ Trading212 API shows {len(open_symbols_api)} open positions: {open_symbols_api}")
+                else:
+                    open_symbols_api = []
+                    print(f"   ⚠️  Could not fetch positions from API: {positions_data}")
+            except Exception as e:
+                open_symbols_api = []
+                print(f"   ❌ Error fetching from API: {e}")
+            
+            # Combine both local and API positions
+            all_open_symbols = list(set(open_symbols_local + open_symbols_api))
+            
+            if not all_open_symbols:
+                print(f"\n⚠️  No open positions to sell (Local: {open_symbols_local}, API: {open_symbols_api})")
                 input("\nPress Enter to continue...")
                 continue
             
-            print(f"\nOpen positions: {', '.join(open_symbols)}")
+            print(f"\nOpen positions available: {', '.join(all_open_symbols)}")
             
             symbols_input = input(f"\nEnter symbols to SELL (comma-separated): ").strip().upper()
             
