@@ -56,9 +56,14 @@ class Trading212Broker:
             self.client = Trading212Client()
             if not self.client.api_key or not self.client.api_secret:
                 logger.error("❌ Trading212 credentials missing - broker disabled")
+                logger.error(f"   Mode: {self.client.mode}")
+                logger.error(f"   API Key: {'SET' if self.client.api_key else 'MISSING'}")
+                logger.error(f"   API Secret: {'SET' if self.client.api_secret else 'MISSING'}")
                 self.enabled = False
             else:
                 logger.info(f"✅ Trading212 client initialized ({self.client.mode} mode)")
+                logger.info(f"   API Base URL: {self.client.base_url}")
+                logger.info(f"   Broker enabled: {self.enabled}")
     
     async def execute_open_trade(self, symbol: str, entry_price: float, quantity: float = 1.0) -> bool:
         """
@@ -85,11 +90,15 @@ class Trading212Broker:
         
         try:
             # Create BUY order on Trading212
+            logger.info(f"🔄 Creating BUY order on Trading212 API: {symbol} x{quantity}")
             async with Trading212Client() as client:
                 response = await client.create_buy_order(symbol, quantity)
             
+            logger.info(f"📥 Trading212 API response: {response}")
+            
             if "error" in response:
-                logger.error(f"❌ Failed to create BUY order for {symbol}: {response['error']}")
+                error_msg = response.get("error")
+                logger.error(f"❌ Failed to create BUY order for {symbol}: {error_msg}")
                 # Create position record with error status
                 self.positions[symbol] = BotPosition(
                     symbol=symbol,
@@ -97,7 +106,7 @@ class Trading212Broker:
                     entry_time=datetime.now(),
                     quantity=quantity,
                     status="ERROR",
-                    error_message=response.get("error")
+                    error_message=error_msg
                 )
                 return False
             

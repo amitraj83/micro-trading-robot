@@ -10,6 +10,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "bot"))
 
+# IMPORTANT: Load .env BEFORE importing any bot modules
+from config import load_env_from_file
+load_env_from_file()
+
 from trading212_broker import Trading212Broker, BotPosition
 from models import Tick
 import logging
