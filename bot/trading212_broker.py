@@ -48,7 +48,7 @@ class Trading212Broker:
         self.enabled = True
         self.sync_interval = 60  # seconds - periodically sync with Trading212
         
-        logger.info("✅ Trading212Broker initialized")
+        logger.info("✅ Trading212Broker initialized (auto-execute on/off based on config)")
     
     async def init_client(self):
         """Initialize Trading212 API client."""

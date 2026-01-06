@@ -191,6 +191,13 @@ WEBSOCKET_CONFIG = {
     "reconnect_delay": 3,  # seconds
 }
 
+# Trading212 Broker Configuration
+TRADING212_CONFIG = {
+    "enabled": os.getenv("ENABLE_TRADING212_EXECUTION", "true").lower() in ("true", "1", "yes", "on"),
+    "order_type": os.getenv("TRADING212_ORDER_TYPE", "MARKET"),  # MARKET for immediate execution
+    "time_in_force": os.getenv("TRADING212_TIME_IN_FORCE", "Day"),  # Day or GTC
+}
+
 # Logging Configuration
 LOG_CONFIG = {
     "log_file": "logs/trading_bot.log",  # Updated to store logs in the logs directory

@@ -8,11 +8,13 @@ from datetime import datetime
 try:
     from models import Tick
     from strategy import MicroTradingStrategy
-    from config import WEBSOCKET_CONFIG, LOG_CONFIG, SYMBOL
+    from config import WEBSOCKET_CONFIG, LOG_CONFIG, SYMBOL, TRADING212_CONFIG
+    from trading212_broker import Trading212Broker
 except ImportError:  # Fallback when imported as part of the bot package
     from bot.models import Tick
     from bot.strategy import MicroTradingStrategy
-    from bot.config import WEBSOCKET_CONFIG, LOG_CONFIG, SYMBOL
+    from bot.config import WEBSOCKET_CONFIG, LOG_CONFIG, SYMBOL, TRADING212_CONFIG
+    from bot.trading212_broker import Trading212Broker
 
 # Setup logging
 logging.basicConfig(
@@ -24,10 +26,12 @@ logger = logging.getLogger(__name__)
 
 
 class TradingBotClient:
-    """WebSocket client integrated with trading strategy"""
+    """WebSocket client integrated with trading strategy and Trading212 broker"""
     
     def __init__(self):
         self.strategy = MicroTradingStrategy()
+        # Initialize broker only if enabled in config
+        self.broker = Trading212Broker() if TRADING212_CONFIG.get("enabled", True) else None
         self.tick_count = 0
         self.trade_callbacks = []  # Callbacks when trades happen
         self.tick_callbacks = []   # Callbacks for each tick

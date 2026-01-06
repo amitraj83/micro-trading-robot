@@ -49,6 +49,8 @@ print("DEBUG: TradingBotClient imported", flush=True)
 from models import Tick
 print("DEBUG: Tick imported", flush=True)
 from config import STRATEGY_CONFIG
+print("DEBUG: Importing Trading212Broker...", flush=True)
+from trading212_broker import Trading212Broker
 print("DEBUG: All imports done", flush=True)
 
 TIMEZONE = pytz.timezone("US/Eastern")
@@ -191,19 +193,75 @@ async def connect_to_historical_data_stream():
                         pnl = event.get("metrics", {}).get("total_pnl", 0)
                         trade_obj = event.get("trade")
                         
+                        # NEW: Execute on Trading212 if broker enabled
+                        trading212_executed = False
+                        if hasattr(_bot_client, 'broker') and _bot_client.broker:
+                            broker = _bot_client.broker
+                            
+                            if action == "OPEN":
+                                # Execute OPEN trade on Trading212
+                                if trade_obj:
+                                    success = await broker.execute_open_trade(
+                                        symbol=tick.symbol,
+                                        entry_price=tick.price,
+                                        quantity=trade_obj.quantity
+                                    )
+                                    if success:
+                                        log_bot_event(
+                                            tick.symbol,
+                                            "OPEN_EXECUTED",
+                                            f"{reason} | {trade_obj.quantity} shares @ ${tick.price:.2f} on Trading212 ✅"
+                                        )
+                                        trading212_executed = True
+                                    else:
+                                        log_bot_event(
+                                            tick.symbol,
+                                            "OPEN_FAILED",
+                                            f"{reason} | Failed to execute on Trading212 ❌"
+                                        )
+                            
+                            elif action == "CLOSE":
+                                # Execute CLOSE trade on Trading212
+                                success = await broker.execute_close_trade(
+                                    symbol=tick.symbol,
+                                    exit_price=tick.price,
+                                    exit_reason=reason
+                                )
+                                if success:
+                                    if trade_obj:
+                                        log_bot_event(
+                                            tick.symbol,
+                                            "CLOSE_EXECUTED",
+                                            f"Exit: {reason} | Entry: ${trade_obj.entry_price:.2f} | Exit: ${tick.price:.2f} | PnL: {pnl:+.2f}% ✅"
+                                        )
+                                    else:
+                                        log_bot_event(
+                                            tick.symbol,
+                                            "CLOSE_EXECUTED",
+                                            f"Exit: {reason} @ ${tick.price:.2f} ✅"
+                                        )
+                                    trading212_executed = True
+                                else:
+                                    log_bot_event(
+                                        tick.symbol,
+                                        "CLOSE_FAILED",
+                                        f"Exit: {reason} | Failed to execute on Trading212 ❌"
+                                    )
+                        
                         # Log with more detail for exits
-                        if action == "CLOSE" and trade_obj:
-                            log_bot_event(
-                                tick.symbol,
-                                f"{action}",
-                                f"Exit: {reason} | Entry: ${trade_obj.entry_price:.2f} | Exit: ${tick.price:.2f} | PnL: {pnl:+.2f}%"
-                            )
-                        else:
-                            log_bot_event(
-                                tick.symbol,
-                                action,
-                                f"{reason} | PnL: {pnl:+.2f}%"
-                            )
+                        if not trading212_executed:
+                            if action == "CLOSE" and trade_obj:
+                                log_bot_event(
+                                    tick.symbol,
+                                    f"{action}",
+                                    f"Exit: {reason} | Entry: ${trade_obj.entry_price:.2f} | Exit: ${tick.price:.2f} | PnL: {pnl:+.2f}%"
+                                )
+                            else:
+                                log_bot_event(
+                                    tick.symbol,
+                                    action,
+                                    f"{reason} | PnL: {pnl:+.2f}%"
+                                )
                         
                         # Broadcast to UI - enhanced with more details
                         broadcast_msg = {
