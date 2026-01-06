@@ -129,9 +129,317 @@ async def test_trading212_integration():
     print("In production, this will create REAL orders on Trading212.")
     print("="*80 + "\n")
 
+async def test_interactive_trading():
+    """
+    Interactive test - run a real bot instance and manually execute trades.
+    
+    Flow:
+    1. Shows total available cash from Trading212
+    2. Shows current open positions
+    3. Asks which symbols to BUY (uses allocation per position)
+    4. Asks which symbols to SELL
+    5. Executes trades on real Trading212 platform
+    6. Loops continuously until user quits
+    """
+    
+    print("\n" + "="*80)
+    print("🤖 INTERACTIVE TRADING212 BOT - REAL EXECUTION")
+    print("="*80)
+    print("\n⚠️  WARNING: This will create REAL trades on Trading212!")
+    print("Make sure you're using demo account if testing.")
+    
+    # Import strategy to get allocation
+    from strategy import MicroTradingStrategy
+    from config import RISK_CONFIG
+    
+    # Create broker and strategy instances
+    broker = Trading212Broker()
+    strategy = MicroTradingStrategy()
+    
+    # Get allocation details
+    available_cash = strategy._get_portfolio_available_cash()
+    allocation_per_pos = strategy._allocation_per_position
+    max_positions = RISK_CONFIG.get("max_open_positions", 4)
+    
+    print(f"\n💰 PORTFOLIO STATUS:")
+    print(f"   Total Available Cash: ${available_cash:,.2f}" if available_cash else "   Total Available Cash: Unable to fetch")
+    print(f"   Allocation per Position: ${allocation_per_pos:.2f}" if allocation_per_pos else "   Allocation per Position: Not initialized")
+    print(f"   Max Open Positions: {max_positions}")
+    
+    print(f"\n✓ Broker initialized: {broker.enabled}")
+    
+    if not broker.enabled:
+        print("\n❌ Broker is disabled (check API credentials)")
+        print("   Set TRADING212_DEMO_API_KEY and TRADING212_DEMO_API_SECRET in .env")
+        return
+    
+    # Main trading loop
+    while True:
+        print("\n" + "="*80)
+        print("📊 CURRENT POSITIONS")
+        print("="*80)
+        
+        if not broker.positions:
+            print("   No open positions")
+        else:
+            for symbol, pos in broker.positions.items():
+                if pos.status == "OPEN":
+                    current_pnl = "(No current price)" 
+                    print(f"   {symbol}: {pos.quantity} shares @ ${pos.entry_price:.2f} - Status: {pos.status} {current_pnl}")
+                elif pos.status == "CLOSED":
+                    pnl = (pos.close_price - pos.entry_price) * pos.quantity if pos.close_price else 0
+                    pnl_pct = ((pos.close_price - pos.entry_price) / pos.entry_price) * 100 if pos.close_price else 0
+                    print(f"   {symbol}: CLOSED @ ${pos.close_price:.2f} - P&L: ${pnl:+.2f} ({pnl_pct:+.2f}%)")
+                else:
+                    print(f"   {symbol}: Status: {pos.status}")
+        
+        # Count open positions
+        open_positions = [s for s, p in broker.positions.items() if p.status == "OPEN"]
+        print(f"\n   Total Open Positions: {len(open_positions)}/{max_positions}")
+        
+        print("\n" + "="*80)
+        print("📈 TRADING OPTIONS")
+        print("="*80)
+        print("   [B] Buy symbols")
+        print("   [S] Sell symbols")
+        print("   [R] Refresh status")
+        print("   [Q] Quit")
+        
+        choice = input("\nYour choice: ").strip().upper()
+        
+        if choice == "Q":
+            print("\n👋 Exiting interactive trading...")
+            break
+        
+        elif choice == "R":
+            # Just refresh - loop will show updated positions
+            continue
+        
+        elif choice == "B":
+            # BUY symbols
+            print("\n" + "-"*80)
+            print("🛒 BUY SYMBOLS")
+            print("-"*80)
+            
+            # Check if we can open more positions
+            if len(open_positions) >= max_positions:
+                print(f"\n⚠️  Cannot open more positions - already at max ({max_positions})")
+                input("\nPress Enter to continue...")
+                continue
+            
+            symbols_input = input(f"\nEnter symbols to BUY (comma-separated, e.g., AAPL,MSFT): ").strip().upper()
+            
+            if not symbols_input:
+                print("   No symbols entered")
+                continue
+            
+            symbols_to_buy = [s.strip() for s in symbols_input.split(",") if s.strip()]
+            
+            for symbol in symbols_to_buy:
+                # Check if already have position
+                if symbol in broker.positions and broker.positions[symbol].status == "OPEN":
+                    print(f"\n⚠️  Already have open position for {symbol} - skipping")
+                    continue
+                
+                # Check if would exceed max positions
+                current_open = len([s for s, p in broker.positions.items() if p.status == "OPEN"])
+                if current_open >= max_positions:
+                    print(f"\n⚠️  Max positions reached ({max_positions}) - skipping {symbol}")
+                    continue
+                
+                # Get current price from user
+                price_input = input(f"\n   Enter current price for {symbol} (or press Enter to skip): $").strip()
+                
+                if not price_input:
+                    print(f"   Skipping {symbol}")
+                    continue
+                
+                try:
+                    entry_price = float(price_input)
+                except ValueError:
+                    print(f"   Invalid price - skipping {symbol}")
+                    continue
+                
+                # Calculate quantity based on allocation
+                if allocation_per_pos and entry_price > 0:
+                    quantity = int(allocation_per_pos / entry_price)
+                    if quantity < 1:
+                        quantity = 1
+                else:
+                    quantity = 1
+                
+                notional_value = quantity * entry_price
+                
+                print(f"\n   📊 Order Details for {symbol}:")
+                print(f"      Price: ${entry_price:.2f}")
+                print(f"      Quantity: {quantity} shares")
+                print(f"      Notional Value: ${notional_value:.2f}")
+                print(f"      Allocation Used: ${notional_value:.2f} / ${allocation_per_pos:.2f}")
+                
+                confirm = input(f"\n   ✓ Execute BUY order? (y/n): ").strip().lower()
+                
+                if confirm == 'y':
+                    print(f"\n   🔄 Executing BUY order for {symbol}...")
+                    
+                    # Check broker status before executing
+                    if not broker.enabled:
+                        print(f"   ❌ Broker is disabled - cannot execute orders")
+                        print(f"      Check Trading212 API credentials in .env")
+                        continue
+                    
+                    success = await broker.execute_open_trade(
+                        symbol=symbol,
+                        entry_price=entry_price,
+                        quantity=quantity
+                    )
+                    
+                    if success:
+                        print(f"   ✅ BUY order executed: {symbol} {quantity} shares @ ${entry_price:.2f}")
+                        # Check position status
+                        if symbol in broker.positions:
+                            pos = broker.positions[symbol]
+                            print(f"      Status: {pos.status}")
+                            if pos.trading212_order_id:
+                                print(f"      Trading212 Order ID: {pos.trading212_order_id}")
+                            if pos.error_message:
+                                print(f"      Error: {pos.error_message}")
+                    else:
+                        print(f"   ❌ BUY order failed for {symbol}")
+                        # Check if position was created with error status
+                        if symbol in broker.positions:
+                            pos = broker.positions[symbol]
+                            if pos.error_message:
+                                print(f"      API Error: {pos.error_message}")
+                else:
+                    print(f"   ⏭️  Skipped {symbol}")
+            
+            input("\nPress Enter to continue...")
+        
+        elif choice == "S":
+            # SELL symbols
+            print("\n" + "-"*80)
+            print("💰 SELL SYMBOLS")
+            print("-"*80)
+            
+            # Get list of open positions
+            open_symbols = [s for s, p in broker.positions.items() if p.status == "OPEN"]
+            
+            if not open_symbols:
+                print("\n⚠️  No open positions to sell")
+                input("\nPress Enter to continue...")
+                continue
+            
+            print(f"\nOpen positions: {', '.join(open_symbols)}")
+            
+            symbols_input = input(f"\nEnter symbols to SELL (comma-separated): ").strip().upper()
+            
+            if not symbols_input:
+                print("   No symbols entered")
+                continue
+            
+            symbols_to_sell = [s.strip() for s in symbols_input.split(",") if s.strip()]
+            
+            for symbol in symbols_to_sell:
+                # Check if we have this position
+                if symbol not in broker.positions:
+                    print(f"\n⚠️  No position found for {symbol} - skipping")
+                    continue
+                
+                pos = broker.positions[symbol]
+                
+                if pos.status != "OPEN":
+                    print(f"\n⚠️  Position {symbol} is not OPEN (status: {pos.status}) - skipping")
+                    continue
+                
+                # Get exit price from user
+                price_input = input(f"\n   Enter exit price for {symbol} (Entry was ${pos.entry_price:.2f}): $").strip()
+                
+                if not price_input:
+                    print(f"   Skipping {symbol}")
+                    continue
+                
+                try:
+                    exit_price = float(price_input)
+                except ValueError:
+                    print(f"   Invalid price - skipping {symbol}")
+                    continue
+                
+                # Calculate estimated P&L
+                pnl_dollars = (exit_price - pos.entry_price) * pos.quantity
+                pnl_percent = ((exit_price - pos.entry_price) / pos.entry_price) * 100
+                
+                print(f"\n   📊 Order Details for {symbol}:")
+                print(f"      Entry Price: ${pos.entry_price:.2f}")
+                print(f"      Exit Price: ${exit_price:.2f}")
+                print(f"      Quantity: {pos.quantity} shares")
+                print(f"      Estimated P&L: ${pnl_dollars:+.2f} ({pnl_percent:+.2f}%)")
+                
+                confirm = input(f"\n   ✓ Execute SELL order? (y/n): ").strip().lower()
+                
+                if confirm == 'y':
+                    print(f"\n   🔄 Executing SELL order for {symbol}...")
+                    success = await broker.execute_close_trade(
+                        symbol=symbol,
+                        exit_price=exit_price,
+                        exit_reason="Manual close"
+                    )
+                    
+                    if success:
+                        print(f"   ✅ SELL order executed: {symbol} {pos.quantity} shares @ ${exit_price:.2f}")
+                        print(f"   💰 P&L: ${pnl_dollars:+.2f} ({pnl_percent:+.2f}%)")
+                    else:
+                        print(f"   ❌ SELL order failed for {symbol}")
+                else:
+                    print(f"   ⏭️  Skipped {symbol}")
+            
+            input("\nPress Enter to continue...")
+        
+        else:
+            print("\n⚠️  Invalid choice")
+            input("\nPress Enter to continue...")
+    
+    print("\n" + "="*80)
+    print("📊 FINAL POSITION SUMMARY")
+    print("="*80)
+    
+    if not broker.positions:
+        print("   No positions")
+    else:
+        total_pnl = 0
+        for symbol, pos in broker.positions.items():
+            if pos.status == "CLOSED" and pos.close_price:
+                pnl = (pos.close_price - pos.entry_price) * pos.quantity
+                pnl_pct = ((pos.close_price - pos.entry_price) / pos.entry_price) * 100
+                total_pnl += pnl
+                print(f"   {symbol}: ${pnl:+.2f} ({pnl_pct:+.2f}%)")
+            elif pos.status == "OPEN":
+                print(f"   {symbol}: STILL OPEN @ ${pos.entry_price:.2f}")
+        
+        if total_pnl != 0:
+            print(f"\n   💰 Total Realized P&L: ${total_pnl:+.2f}")
+    
+    print("\n" + "="*80)
+    print("✅ Interactive trading session ended")
+    print("="*80 + "\n")
+
+
 if __name__ == "__main__":
-    try:
-        asyncio.run(test_trading212_integration())
-    except Exception as e:
-        logger.error(f"Test failed: {e}", exc_info=True)
-        sys.exit(1)
+    import sys
+    
+    # Check which test to run
+    if len(sys.argv) > 1 and sys.argv[1] == "interactive":
+        # Run interactive test
+        try:
+            asyncio.run(test_interactive_trading())
+        except KeyboardInterrupt:
+            print("\n\n👋 Interrupted by user")
+        except Exception as e:
+            logger.error(f"Interactive test failed: {e}", exc_info=True)
+            sys.exit(1)
+    else:
+        # Run automated test
+        try:
+            asyncio.run(test_trading212_integration())
+        except Exception as e:
+            logger.error(f"Test failed: {e}", exc_info=True)
+            sys.exit(1)
