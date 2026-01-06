@@ -81,16 +81,18 @@ class Trading212Client:
         headers = self._get_headers()
         
         try:
-            logger.debug(f"📤 {method} {url}")
+            logger.info(f"📤 Trading212 API Request: {method} {url}")
+            if json_data:
+                logger.info(f"   Payload: {json_data}")
+            
             async with self.session.request(method, url, json=json_data, headers=headers, timeout=10) as resp:
                 response_text = await resp.text()
                 
+                logger.info(f"📥 Trading212 API Response: {resp.status}")
+                logger.info(f"   Body: {response_text[:500]}")  # First 500 chars
+                
                 if resp.status >= 400:
                     logger.error(f"❌ Trading212 API {resp.status}: {response_text}")
-                    # For demo/test, return simulated data on 404
-                    if resp.status == 404 and not TRADING212_LIVE:
-                        logger.info(f"ℹ️ Demo mode: Using simulated response for {endpoint}")
-                        return self._simulate_response(method, endpoint, json_data)
                     return {"error": response_text, "status": resp.status}
                 
                 try:
@@ -104,40 +106,6 @@ class Trading212Client:
         except Exception as e:
             logger.error(f"❌ Trading212 API exception: {e}")
             return {"error": str(e)}
-    
-    def _simulate_response(self, method: str, endpoint: str, json_data: Optional[Dict] = None) -> Dict[str, Any]:
-        """Generate simulated responses for testing when API is unavailable."""
-        import random
-        
-        if "account/summary" in endpoint:
-            return {
-                "id": 12345,
-                "cash": {"value": 5000.0, "currency": ACCOUNT_CURRENCY},
-                "currency": ACCOUNT_CURRENCY,
-                "investments": {"value": 2500.0},
-                "totalValue": {"value": 7500.0}
-            }
-        elif "positions" in endpoint and method == "GET":
-            return []
-        elif "orders" in endpoint and method == "GET" and "market" not in endpoint:
-            return []
-        elif "orders/market" in endpoint and method == "POST":
-            # Simulate order creation
-            order_id = random.randint(100000, 999999)
-            ticker = json_data.get("ticker", "UNKNOWN") if json_data else "UNKNOWN"
-            quantity = json_data.get("quantity", 0) if json_data else 0
-            return {
-                "id": order_id,
-                "ticker": ticker,
-                "quantity": abs(quantity),
-                "side": "BUY" if quantity > 0 else "SELL",
-                "status": "NEW",
-                "type": "MARKET",
-                "createdAt": datetime.now().isoformat(),
-                "currency": ACCOUNT_CURRENCY
-            }
-        
-        return {"error": "unknown_endpoint"}
     
     async def get_account_info(self) -> Dict[str, Any]:
         """
