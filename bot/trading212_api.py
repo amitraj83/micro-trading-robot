@@ -54,10 +54,15 @@ class Trading212Client:
             await self.session.close()
     
     def _get_headers(self) -> Dict[str, str]:
-        """Build request headers with authentication."""
+        """Build request headers with Basic Auth authentication."""
+        import base64
+        
+        # Build Basic Auth header: base64(api_key:api_secret)
+        credentials = f"{self.api_key}:{self.api_secret}"
+        encoded = base64.b64encode(credentials.encode()).decode()
+        
         return {
-            "X-API-KEY": self.api_key,
-            "X-API-SECRET": self.api_secret,
+            "Authorization": f"Basic {encoded}",
             "Content-Type": "application/json"
         }
     
@@ -115,7 +120,7 @@ class Trading212Client:
             Account dict with balance, cash, etc.
         """
         logger.info(f"📊 Fetching {self.mode} account info...")
-        response = await self._request("GET", "/api/v0/equity/account/summary")
+        response = await self._request("GET", "/equity/account/summary")
         
         if "error" not in response:
             logger.info(f"✅ Account fetched: {response.get('id')}")
@@ -130,7 +135,7 @@ class Trading212Client:
             List of position dicts
         """
         logger.info(f"📋 Fetching {self.mode} positions...")
-        response = await self._request("GET", "/api/v0/equity/positions")
+        response = await self._request("GET", "/equity/positions")
         
         if isinstance(response, list):
             logger.info(f"✅ Fetched {len(response)} positions")
@@ -145,7 +150,7 @@ class Trading212Client:
             List of order dicts
         """
         logger.info(f"📋 Fetching {self.mode} orders...")
-        response = await self._request("GET", "/api/v0/equity/orders")
+        response = await self._request("GET", "/equity/orders")
         
         if isinstance(response, list):
             logger.info(f"✅ Fetched {len(response)} orders")
@@ -172,7 +177,7 @@ class Trading212Client:
         }
         
         logger.info(f"📈 Creating BUY order: {ticker} x {quantity} shares ({self.mode})")
-        response = await self._request("POST", "/api/v0/equity/orders/market", payload)
+        response = await self._request("POST", "/equity/orders/market", payload)
         
         if "id" in response:
             order_id = response.get("id")
@@ -202,7 +207,7 @@ class Trading212Client:
         }
         
         logger.info(f"📉 Creating SELL order: {ticker} x {quantity} shares ({self.mode})")
-        response = await self._request("POST", "/api/v0/equity/orders/market", payload)
+        response = await self._request("POST", "/equity/orders/market", payload)
         
         if "id" in response:
             order_id = response.get("id")
